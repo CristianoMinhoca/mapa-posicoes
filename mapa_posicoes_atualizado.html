@@ -230,6 +230,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <option value="OCUPADO">Ocupado</option>
       <option value="VAGO">Vago / Livre</option>
     </select></div>
+  <div class="fr"><label>CRD</label><input id="moCRD" type="text" placeholder="Ex: CRD001" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div>
   <div class="fr"><label>Observações</label><textarea id="moO" rows="2" placeholder="Obs..."></textarea></div>
   <div class="mo-prev" id="moPv"></div>
   <div class="mo-foot">
@@ -361,7 +362,8 @@ function renderMap(){
       const nomeHtml=`<span style="writing-mode:vertical-rl;transform:rotate(180deg);font-weight:700;font-size:${fs}px;color:${tx};line-height:1.1;max-height:${bh-6}px;overflow:hidden;text-overflow:ellipsis">${d.nome}</span>`;
       const empHtml=hasEmp?`<span style="writing-mode:vertical-rl;transform:rotate(180deg);font-weight:400;font-size:${fse}px;color:${tx};opacity:.85;line-height:1.1;max-height:${bh-6}px;overflow:hidden">${d.emp}</span>`:'';
       div.style.cssText=`left:${d.x}px;top:${d.y}px;width:${bw}px;height:${bh}px;background:${bg};border:1px solid ${bd};box-sizing:border-box;display:flex;flex-direction:row;align-items:center;justify-content:center;gap:2px;overflow:hidden;cursor:pointer;`;
-      div.innerHTML=nomeHtml+empHtml;
+      const crdHtmlV=d.crd?`<span style="writing-mode:vertical-rl;transform:rotate(180deg);font-weight:400;font-size:${Math.max(6,fse-1)}px;color:${tx};opacity:.65;line-height:1.1;max-height:${bh-6}px;overflow:hidden">${d.crd}</span>`:'';
+      div.innerHTML=nomeHtml+empHtml+crdHtmlV;
     } else {
       // Mesa horizontal: nome em cima, empresa embaixo, juntos centrados
       const fs=Math.max(8,Math.min(14,Math.floor(bh*(hasEmp?0.30:0.40))));
@@ -370,11 +372,12 @@ function renderMap(){
       const empLines=hasEmp?wrapText(d.emp, bw-8, fse):[];
       const nomeHtml=nomeLines.map(l=>`<div style="font-weight:700;font-size:${fs}px;color:${tx};line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${bw-6}px;text-align:center">${l}</div>`).join('');
       const empHtml=empLines.map(l=>`<div style="font-weight:400;font-size:${fse}px;color:${tx};opacity:.85;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${bw-6}px;text-align:center">${l}</div>`).join('');
+      const crdHtml=d.crd?`<div style="font-weight:400;font-size:${Math.max(6,fse-1)}px;color:${tx};opacity:.7;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${bw-6}px;text-align:center">${d.crd}</div>`:'';
       div.style.cssText=`left:${d.x}px;top:${d.y}px;width:${bw}px;height:${bh}px;background:${bg};border:1px solid ${bd};box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;cursor:pointer;padding:2px;`;
-      div.innerHTML=nomeHtml+empHtml;
+      div.innerHTML=nomeHtml+empHtml+crdHtml;
     }
 
-    div.title=`${d.nome}${d.emp?' · '+d.emp:''} · ${d.status}`;
+    div.title=`${d.nome}${d.emp?' · '+d.emp:''}${d.crd?' · CRD:'+d.crd:''} · ${d.status}`;
     div.onclick=()=>openEdit(d.id);
     div.onmouseenter=ev=>tip(ev,`<strong>${d.nome}</strong>${d.emp?'<br>'+d.emp:''}<br>${d.empresa}<br>${d.status}${d.obs?'<br>'+d.obs:''}`);
     div.onmouseleave=htip;
@@ -410,6 +413,7 @@ function openEdit(id){
   $('moE').value=d.empresa;
   $('moS').value=d.status;
   $('moO').value=d.obs||'';
+  $('moCRD').value=d.crd||'';
   $('bDel').style.display='inline-block';
   pu();
   $('moBg').classList.add('open');
@@ -424,7 +428,7 @@ function pu(){
 }
 function sv(){
   const nomeRaw=$('moN').value.trim().toUpperCase();
-  const empresa=$('moE').value,status=$('moS').value,obs=$('moO').value.trim();
+  const empresa=$('moE').value,status=$('moS').value,obs=$('moO').value.trim(),crd=$('moCRD').value.trim().toUpperCase();
   if(!empresa){alert('Selecione empresa');return;}
   if(ek){
     const i=db.findIndex(x=>x.id===ek);
@@ -440,7 +444,7 @@ function sv(){
       const nomeF=nomeRaw.length>0?nomeRaw:(isVago?'VAGO':'LIVRE');
       // Empresa label: se VAGO mostra 'LIVRE', senão mostra empresa
       const empLabel=isVago?'LIVRE':empresa;
-      db[i]={...old, nome:nomeF, empresa, status:statusF, obs,
+      db[i]={...old, nome:nomeF, empresa, status:statusF, obs, crd,
              bg:c.bg, bd:c.bd, tx:c.tx, emp:empLabel};
       // Registra no histórico
       let msg='';
@@ -628,7 +632,7 @@ function renderDash(){
   }
 }
 
-function importCSV(){
+async function importCSV(){
   const inp=document.createElement('input');
   inp.type='file'; inp.accept='.csv,.txt';
   inp.onchange=async function(ev){
@@ -840,9 +844,19 @@ function getLog(){
   return s?JSON.parse(s):[];
 }
 function saveLog(l){ localStorage.setItem('mapaLog2026',JSON.stringify(l.slice(0,500))); }
-function addLog(msg){
+async function addLog(msg){
   if(!currentUser)return;
-  const log=await getLog();
+  try{
+    await _supa.from('log_alteracoes').insert({
+      user_login: currentUser.user,
+      user_nome: currentUser.nome||currentUser.user,
+      mensagem: msg
+    });
+  }catch(e){console.error('addLog:',e);}
+}
+async function addLog_OLD(msg){
+  if(!currentUser)return;
+  const log=[];
   const now=new Date();
   log.unshift({
     user:currentUser.user,
@@ -858,10 +872,19 @@ async function doLogin(){
   const p=$('loginPass').value.trim();
   if(!u||!p){$('loginErr').textContent='Preencha usuário e senha';return;}
   showLoading("Verificando...");
-  const users=await getUsers();
+  let users=[];
+  try{
+    users=await getUsers();
+  } catch(e){
+    hideLoading();
+    $('loginErr').textContent='Erro de conexão: '+e.message;
+    console.error('Erro getUsers:',e);
+    return;
+  }
   hideLoading();
+  console.log('Usuários carregados:',users.length, users.map(u=>u.user));
   const found=users.find(x=>x.user===u&&x.pass===p);
-  if(!found){$('loginErr').textContent='Usuário ou senha incorretos';return;}
+  if(!found){$('loginErr').textContent='Usuário ou senha incorretos ('+users.length+' usuários carregados)';return;}
   currentUser=found;
   $('loginBg').style.display='none';
   // Mostra nome do usuário na barra
@@ -883,13 +906,13 @@ async function doLogin(){
   logoutBtn.onclick=function(){currentUser=null;location.reload();};
   document.querySelector('.bar').appendChild(tag);
   document.querySelector('.bar').appendChild(logoutBtn);
-  await addLog('Login no sistema');
+  addLog('Login no sistema');
   applyUserRole();
   setTimeout(checkMustChange, 300);
 }
 
 // Admin
-function openAdm(){ await renderAdmUsers(); $('admBg').classList.add('open'); }
+async function openAdm(){ await renderAdmUsers(); $('admBg').classList.add('open'); }
 function closeAdm(){ $('admBg').classList.remove('open'); }
 function admTab(t){
   document.querySelectorAll('.adm-tab').forEach((el,i)=>el.classList.toggle('active',i===(t==='log'?1:0)));
@@ -915,7 +938,7 @@ async function addUser(){
   const users=await getUsers();
   if(users.find(x=>x.user===u)){alert('Usuário já existe');return;}
   users.push({user:u,pass:p,role:r,nome:u,mustChange:mc});
-  await saveUsers(users); await renderAdmUsers();
+  await saveUsers(users); renderAdmUsers();
   $('newUser').value=''; $('newPass').value='';
   await addLog('Criou usuário: '+u+' (perfil: '+r+(mc?' | troca senha':'')+')');
 }
@@ -923,7 +946,7 @@ async function delUser(i){
   if(!confirm('Remover usuário?'))return;
   const users=await getUsers(); 
   await addLog('Removeu usuário: '+users[i].user);
-  users.splice(i,1); await saveUsers(users); await renderAdmUsers();
+  users.splice(i,1); await saveUsers(users); renderAdmUsers();
 }
 async function renderLog(){
   const log=await getLog();
@@ -934,7 +957,7 @@ async function renderLog(){
     '<div class="log-msg">'+l.msg+'</div></div>'
   ).join('') || '<div style="color:#4b5563;padding:20px;text-align:center">Nenhum registro</div>';
 }
-function exportLog(){
+async function exportLog(){
   const log=await getLog();
   const csv=[['Usuário','Data/Hora','Ação'],...log.map(l=>[l.nome,l.time,l.msg])];
   const txt=csv.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
@@ -950,7 +973,7 @@ window.addEventListener('DOMContentLoaded',function(){
 });
 
 // ── TROCAR SENHA ─────────────────────────────────────────────────────────────
-function openChpass(){
+async function openChpass(){
   const users=await getUsers();
   $('chpassUser').innerHTML=users.map((u,i)=>'<option value="'+i+'">'+u.nome+' ('+u.user+')</option>').join('');
   $('chpassNew').value=''; $('chpassConf').value=''; $('chpassErr').textContent='';
@@ -1087,7 +1110,7 @@ function exportarUsuarios_disabled(){
   addLog('Exportou lista de usuários');
 }
 
-function importarUsuarios_disabled(){
+async function importarUsuarios_disabled(){
   const inp = document.createElement('input');
   inp.type = 'file';
   inp.accept = '.json';
@@ -1095,7 +1118,7 @@ function importarUsuarios_disabled(){
     const file = ev.target.files[0];
     if(!file) return;
     const reader = new FileReader();
-    reader.onload = function(e){
+    reader.onload = async function(e){
       try {
         const users = JSON.parse(e.target.result);
         if(!Array.isArray(users)) throw new Error('Formato inválido');
@@ -1113,7 +1136,7 @@ function importarUsuarios_disabled(){
 }
 
 // ── SUPABASE ─────────────────────────────────────────────────────────────────
-const _supa = supabase.createClient('https://ckbrfbikyqcmbinpgciw.supabase.co','sb_publishable_kZzsmEdnkgoI9s4gL9ZU5w_U1SQQk1E');
+const _supa = supabase.createClient('https://ckbrfbikyqcmbinpgciw.supabase.co','eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNrYnJmYmlreXFjbWJpbnBnY2l3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwNjkwNTYsImV4cCI6MjA5NDY0NTA1Nn0.kOGtDM5Eq6Y5OV1JAu9e_LnHoR5VT_LwRVgSOyIM_YE');
 
 function showLoading(msg){
   let el=document.getElementById('supaLoad');
@@ -1129,8 +1152,11 @@ function hideLoading(){ const el=document.getElementById('supaLoad'); if(el) el.
 
 // Usuários via Supabase
 async function getUsers(){
+  console.log('Buscando usuários no Supabase...');
   const {data,error} = await _supa.from('usuarios').select('dados');
+  console.log('Resultado:', {data, error});
   if(!error && data && data.length>0) return data.map(r=>r.dados);
+  if(error) console.error('Erro ao buscar usuários:', error);
   // Primeira vez: cria padrões
   const def=[
     {user:'admin', pass:'admin123', role:'admin', nome:'Administrador', mustChange:false},
