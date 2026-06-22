@@ -1360,9 +1360,18 @@ async function executarCriarSADs(){
         var sadCod=sadText.match(/<OpCodigo>(.*?)<\/OpCodigo>/);
         var sadDesc=sadText.match(/<OpDescricao>(.*?)<\/OpDescricao>/);
         if(sadStatus&&sadStatus[1]==='1'){
-          logProg('   SAD criada! Cod: '+(sadCod?sadCod[1]:'?')+' | R$ '+emp.valorTotal.toLocaleString('pt-BR',{minimumFractionDigits:2}),'#66BB6A');
+          var sadCodigo=sadCod?sadCod[1]:'';
+          var sadUkey=(sadText.match(/<OpUkey>(.*?)<\/OpUkey>/)||[])[1]||'';
+          logProg('   SAD criada! Cod: '+sadCodigo+' | R$ '+emp.valorTotal.toLocaleString('pt-BR',{minimumFractionDigits:2}),'#66BB6A');
           totalCriadas++;
           if(typeof addLog==='function') addLog('SAD criada - '+emp.empInfo.nome+' comp '+lote.label+' - R$ '+emp.valorTotal.toFixed(2));
+          try {
+            logProg('   📁 Enviando PDF ao OneDrive...','#FFA726');
+            var uploadResp=await fetch('http://localhost:3000',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'UPLOAD_ONEDRIVE',ukey:sadUkey,numero_sad:sadCodigo,empresa_cod:emp.empInfo.cod,data_vencimento:lote.venc})});
+            var uploadData=await uploadResp.json();
+            if(uploadData.success){logProg('   ✅ PDF salvo: '+uploadData.caminho,'#66BB6A');}
+            else{logProg('   ⚠️ Erro OneDrive - verifique manualmente','#FFA726');}
+          } catch(eUp){logProg('   ⚠️ OneDrive: '+eUp.message,'#FFA726');}
         } else {
           logProg('   Erro: '+(sadDesc?sadDesc[1]:'Erro desconhecido'),'#EF5350');
           totalErros++;
