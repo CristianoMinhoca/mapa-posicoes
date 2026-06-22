@@ -230,7 +230,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <option value="OCUPADO">Ocupado</option>
       <option value="VAGO">Vago / Livre</option>
     </select></div>
-  <div class="fr"><label>CRD</label><input id="moCRD" type="text" placeholder="Ex: CRD001" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div>
+  <div class="fr"><label>CRD</label><input id="moCRD" type="text" placeholder="Ex: 02.203.0082" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div>
   <div class="fr"><label>Observações</label><textarea id="moO" rows="2" placeholder="Obs..."></textarea></div>
   <div class="mo-prev" id="moPv"></div>
   <div class="mo-foot">
@@ -413,6 +413,7 @@ function openEdit(id){
   $('moE').value=d.empresa;
   $('moS').value=d.status;
   $('moO').value=d.obs||'';
+  $('moCRD').value=d.crd||'';
   $('moCRD').value=d.crd||'';
   $('bDel').style.display='inline-block';
   pu();
@@ -1034,8 +1035,8 @@ function enviarEmailOcupacao(){
   const byE={};
   db.forEach(d=>{
     if(!byE[d.empresa]) byE[d.empresa]={ocupados:[],vagos:[]};
-    if(d.status==='OCUPADO') byE[d.empresa].ocupados.push(d.nome);
-    else byE[d.empresa].vagos.push(d.nome);
+    if(d.status==='OCUPADO') byE[d.empresa].ocupados.push({nome:d.nome,crd:d.crd||''});
+    else byE[d.empresa].vagos.push({nome:d.nome,crd:d.crd||''});
   });
 
   const total=db.length;
@@ -1056,14 +1057,30 @@ function enviarEmailOcupacao(){
       corpo+=emp.toUpperCase()+' — '+tot+' posições ('+info.ocupados.length+' ocup | '+info.vagos.length+' vagas)\n';
       if(info.ocupados.length){
         corpo+='  Ocupadas:\n';
-        info.ocupados.forEach(n=>corpo+='    • '+n+'\n');
+        info.ocupados.forEach(n=>corpo+='    • '+(typeof n==='object'?n.nome+(n.crd?' [CRD: '+n.crd+']':''):n)+'\n');
       }
       if(info.vagos.length){
         corpo+='  Vagas:\n';
-        info.vagos.forEach(n=>corpo+='    • '+n+'\n');
+        info.vagos.forEach(n=>corpo+='    • '+(typeof n==='object'?n.nome+(n.crd?' [CRD: '+n.crd+']':''):n)+'\n');
       }
       corpo+='\n';
     });
+
+  const byCRD={};
+  db.forEach(d=>{
+    if(d.status!=='OCUPADO') return;
+    const crd=d.crd||'SEM CRD';
+    if(!byCRD[crd]) byCRD[crd]=[];
+    byCRD[crd].push(d.nome);
+  });
+  corpo+='\n═══════════════════════════════════════════\n';
+  corpo+='RESUMO POR CRD\n';
+  corpo+='═══════════════════════════════════════════\n\n';
+  Object.entries(byCRD).sort((a,b)=>a[0].localeCompare(b[0])).forEach(([crd,nomes])=>{
+    corpo+=crd+' — '+nomes.length+' pessoa'+(nomes.length>1?'s':'')+'\n';
+    nomes.sort().forEach(n=>corpo+='    • '+n+'\n');
+    corpo+='\n';
+  });
 
   // Inicializa EmailJS e envia
   emailjs.init('Q9Y4_cWG2hFWrRcor');
@@ -1222,6 +1239,146 @@ function mt(ev){const t=$('tip');t.style.left=(ev.clientX+14)+'px';t.style.top=(
 document.addEventListener('mousemove',ev=>{const t=$('tip');if(t.style.display==='block')mt(ev);});
 
 loadDesksFromSupa();
+
+// ── CRIAR SAD ─────────────────────────────────────────────────────────────────
+var CRD_EMPRESA_MAP={'02':{cod:'2',nome:'PALLAS/LIVRE/CHAIRMAN'},'18':{cod:'18',nome:'CSC'},'26':{cod:'26',nome:'SBT/ASSETUR'},'49':{cod:'49',nome:'NEST'},'69':{cod:'69',nome:'4BTS'},'81':{cod:'81',nome:'SEDE'},'82':{cod:'82',nome:'COPA'},'84':{cod:'84',nome:'POPTUR'},'85':{cod:'85',nome:'NEST TRAVEL',cnpj:'62.837.390/0001-06'}};
+var EMPRESAS_IGNORAR=['JAT','TVEX'];
+var SAD_CONFIG={appLogin:'admincsc',appHost:'201.76.181.43',appKey:'1956627D5DD6B6AB8668E3D0261FFF91',tdDocumento:'TD-0000488',fornecedorCNPJ:'99.139.231/9999-29',fornecedorNome:'SEDE MHS',fornecedorRazao:'SEDE MHS LTDA',valorPorPessoa:1500.00,moeda:'SMBR'};
+var sadDados=null;
+
+function logPrev(msg,cor){cor=cor||'#fff';var el=document.getElementById('sadPreviewLog');el.innerHTML+='<span style="color:'+cor+'">'+msg+'</span>\n';el.scrollTop=el.scrollHeight;}
+function logProg(msg,cor){cor=cor||'#fff';var el=document.getElementById('sadProgressLog');el.innerHTML+='<span style="color:'+cor+'">'+msg+'</span>\n';el.scrollTop=el.scrollHeight;}
+function formatComp(el){var v=el.value.replace(/\D/g,'');if(v.length>2)v=v.substring(0,2)+'/'+v.substring(2,6);el.value=v;}
+function formatVenc(el){var v=el.value.replace(/\D/g,'');if(v.length>2)v=v.substring(0,2)+'/'+v.substring(2);if(v.length>5)v=v.substring(0,5)+'/'+v.substring(5,9);el.value=v;}
+
+function criarSAD(){
+  document.getElementById('sadPreviewBg').style.display='block';
+  document.getElementById('sadPreviewLog').innerHTML='';
+  logPrev('Calculando SADs com base no mapa atual...','#FFD700');
+  logPrev('');
+  var porEmpresa={};
+  db.forEach(function(d){
+    if(EMPRESAS_IGNORAR.indexOf(d.empresa)>=0) return;
+    if(!d.crd||d.crd.trim()==='') return;
+    var prefix=d.crd.trim().substring(0,2);
+    if(!CRD_EMPRESA_MAP[prefix]) return;
+    if(!porEmpresa[prefix]) porEmpresa[prefix]={};
+    var crd=d.crd.trim().toUpperCase();
+    if(!porEmpresa[prefix][crd]) porEmpresa[prefix][crd]=0;
+    porEmpresa[prefix][crd]++;
+  });
+  sadDados={empresas:[]};
+  var totalP=0,totalV=0;
+  Object.keys(porEmpresa).sort().forEach(function(prefix){
+    var crds=porEmpresa[prefix];
+    var empInfo=CRD_EMPRESA_MAP[prefix];
+    var pessoas=Object.keys(crds).reduce(function(a,k){return a+crds[k];},0);
+    var valorTotal=pessoas*SAD_CONFIG.valorPorPessoa;
+    totalP+=pessoas; totalV+=valorTotal;
+    logPrev(empInfo.nome+' (Empresa '+empInfo.cod+')','#4FC3F7');
+    logPrev('   '+pessoas+' pessoa(s) | R$ '+valorTotal.toLocaleString('pt-BR',{minimumFractionDigits:2}));
+    logPrev('   Rateio:');
+    var rateioList=[];
+    Object.keys(crds).sort().forEach(function(crd){
+      var qtd=crds[crd];
+      var val=qtd*SAD_CONFIG.valorPorPessoa;
+      var pct=parseFloat((val/valorTotal*100).toFixed(4));
+      logPrev('     - '+crd+': '+qtd+' pessoa(s) = R$ '+val.toLocaleString('pt-BR',{minimumFractionDigits:2})+' ('+pct+'%)');
+      rateioList.push({crd:crd,valor:val,percentual:pct,qtd:qtd});
+    });
+    logPrev('');
+    sadDados.empresas.push({prefix:prefix,empInfo:empInfo,pessoas:pessoas,valorTotal:valorTotal,rateioList:rateioList});
+  });
+  logPrev('═══════════════════════════════════════','#FFD700');
+  logPrev('TOTAL: '+totalP+' pessoas | R$ '+totalV.toLocaleString('pt-BR',{minimumFractionDigits:2}),'#FFD700');
+  logPrev('SADs por competencia: '+sadDados.empresas.length,'#FFD700');
+  logPrev('Total maximo de SADs (3 comp): '+(sadDados.empresas.length*3),'#FFD700');
+}
+
+function abrirFormCompetencias(){
+  document.getElementById('sadPreviewBg').style.display='none';
+  document.getElementById('sadCompBg').style.display='block';
+  document.getElementById('sadCompErro').textContent='';
+}
+
+function parseCompetencia(val){var parts=val.split('/');if(parts.length!==2)return null;var mm=parts[0].padStart(2,'0');var aaaa=parts[1];if(mm.length!==2||aaaa.length!==4)return null;return aaaa+mm;}
+function parseVencimento(val){var parts=val.split('/');if(parts.length!==3)return null;var dd=parts[0].padStart(2,'0');var mm=parts[1].padStart(2,'0');var aaaa=parts[2];if(aaaa.length!==4)return null;return aaaa+'-'+mm+'-'+dd;}
+
+async function chamarStarSoft(xmlBody,action){
+  var resp=await fetch('/.netlify/functions/starsoft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({xml:xmlBody,action:action})});
+  if(!resp.ok) throw new Error('Erro HTTP '+resp.status);
+  var data=await resp.json();
+  return data.result;
+}
+
+async function executarCriarSADs(){
+  var erroEl=document.getElementById('sadCompErro');
+  erroEl.textContent='';
+  var lotes=[];
+  for(var i=1;i<=3;i++){
+    var compVal=document.getElementById('comp'+i).value.trim();
+    var vencVal=document.getElementById('venc'+i).value.trim();
+    if(!compVal&&!vencVal) continue;
+    if(!compVal||!vencVal){erroEl.textContent='Linha '+i+': preencha competencia E vencimento ou deixe ambos em branco.';return;}
+    var comp=parseCompetencia(compVal);
+    var venc=parseVencimento(vencVal);
+    if(!comp){erroEl.textContent='Competencia '+i+' invalida. Use MM/AAAA.';return;}
+    if(!venc){erroEl.textContent='Vencimento '+i+' invalido. Use DD/MM/AAAA.';return;}
+    lotes.push({comp:comp,venc:venc,label:compVal,vencLabel:vencVal});
+  }
+  if(lotes.length===0){erroEl.textContent='Preencha pelo menos 1 competencia e vencimento.';return;}
+  document.getElementById('sadCompBg').style.display='none';
+  document.getElementById('sadProgressBg').style.display='block';
+  document.getElementById('sadProgressLog').innerHTML='';
+  document.getElementById('btnFecharProgress').style.display='none';
+  var totalCriadas=0,totalErros=0;
+  for(var l=0;l<lotes.length;l++){
+    var lote=lotes[l];
+    logProg('');
+    logProg('══════════════════════════════════════','#FFD700');
+    logProg('COMPETENCIA '+lote.label+' | Vencimento: '+lote.vencLabel,'#FFD700');
+    logProg('══════════════════════════════════════','#FFD700');
+    for(var e=0;e<sadDados.empresas.length;e++){
+      var emp=sadDados.empresas[e];
+      logProg('\nCriando SAD: '+emp.empInfo.nome+' (Empresa '+emp.empInfo.cod+')...','#4FC3F7');
+      try{
+        var authXml='<?xml version="1.0" encoding="utf-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:met="MetodosWeb" xmlns:wsga="WSGA"><soapenv:Header/><soapenv:Body><WsGaService.AUTENTICALOGIN><Sdtautenticalogin><AppLogin>'+SAD_CONFIG.appLogin+'</AppLogin><AppHost>'+SAD_CONFIG.appHost+'</AppHost><AppKey>'+SAD_CONFIG.appKey+'</AppKey><AppEmpresa>'+emp.empInfo.cod+'</AppEmpresa></Sdtautenticalogin></WsGaService.AUTENTICALOGIN></soapenv:Body></soapenv:Envelope>';
+        var authText=await chamarStarSoft(authXml,'AUTENTICALOGIN');
+        var sessionMatch=authText.match(/<OpUkey>(.*?)<\/OpUkey>/);
+        var statusMatch=authText.match(/<OpStatus>(.*?)<\/OpStatus>/);
+        if(!sessionMatch||!statusMatch||statusMatch[1]!=='1'){
+          var desc=authText.match(/<OpDescricao>(.*?)<\/OpDescricao>/);
+          logProg('   Falha autenticacao: '+(desc?desc[1]:'erro'),'#EF5350');
+          totalErros++; continue;
+        }
+        var sessionId=sessionMatch[1];
+        var rateioXml='';
+        emp.rateioList.forEach(function(r){rateioXml+='<SDTContasAPagarRateio.SDTContasAPagarRateioItem><ContasAPagarRateioCRDCod>'+r.crd+'</ContasAPagarRateioCRDCod><ContasAPagarRateioPercentual>'+r.percentual+'</ContasAPagarRateioPercentual><ContasAPagarRateioValor>'+r.valor.toFixed(2)+'</ContasAPagarRateioValor></SDTContasAPagarRateio.SDTContasAPagarRateioItem>';});
+        var sadXml='<?xml version="1.0" encoding="utf-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:met="MetodosWeb" xmlns:wsga="WSGA"><soapenv:Header/><soapenv:Body><WsGaService.NEWSAD><met:Sdtnewsad><SessionId>'+sessionId+'</SessionId><ContasAPagarEmpresa>'+emp.empInfo.cod+'</ContasAPagarEmpresa><ContasAPagarCod>MAP-'+lote.comp+'-'+emp.empInfo.cod+'</ContasAPagarCod><ContasAPagarOrigem>F</ContasAPagarOrigem><ContasAPagarCodOrigem>SEDEMHS</ContasAPagarCodOrigem><ContasAPagarCnpjOrigem>'+SAD_CONFIG.fornecedorCNPJ+'</ContasAPagarCnpjOrigem><ContasAPagarUkeyOrigem></ContasAPagarUkeyOrigem><ContasAPagarOrigemNomeFantasia>'+SAD_CONFIG.fornecedorNome+'</ContasAPagarOrigemNomeFantasia><ContasAPagarOrigemRazaoSocial>'+SAD_CONFIG.fornecedorRazao+'</ContasAPagarOrigemRazaoSocial><ContasAPagarOrigemOrigem>N</ContasAPagarOrigemOrigem><ContasAPagarOrigemTipoPessoa>J</ContasAPagarOrigemTipoPessoa><ContasAPagarOrigemEndereco>RUA TESTE 123</ContasAPagarOrigemEndereco><ContasAPagarOrigemCep>20000-000</ContasAPagarOrigemCep><ContasAPagarOrigemCidade>RIO DE JANEIRO</ContasAPagarOrigemCidade><ContasAPagarOrigemTipo>FOR</ContasAPagarOrigemTipo><ContasAPagarOrigemClassificacao>2</ContasAPagarOrigemClassificacao><ContasAPagarMoeda>'+SAD_CONFIG.moeda+'</ContasAPagarMoeda><ContasAPagarTipoDocumento>'+SAD_CONFIG.tdDocumento+'</ContasAPagarTipoDocumento><ContasAPagarCompetencia>'+lote.comp+'</ContasAPagarCompetencia><ContasAPagarValorTotal>'+emp.valorTotal.toFixed(2)+'</ContasAPagarValorTotal><ContasAPagarQtdParcela>1</ContasAPagarQtdParcela><ContasAPagarSerieDocumento>MAP'+lote.comp+'</ContasAPagarSerieDocumento><ContasAPagarComentario><![CDATA[Cobranca mapa posicoes '+lote.comp+' - '+emp.pessoas+' pessoa(s)]]></ContasAPagarComentario><Parcela><SDTContasAPagarParcela.SDTContasAPagarParcelaItem><ContasAPagarParcelaOrdem>1</ContasAPagarParcelaOrdem><ContasAPagarParcelaVctoNominal>'+lote.venc+'</ContasAPagarParcelaVctoNominal><ContasAPagarParcelaVctoReal>'+lote.venc+'</ContasAPagarParcelaVctoReal><ContasAPagarParcelaValorBruto>'+emp.valorTotal.toFixed(2)+'</ContasAPagarParcelaValorBruto><ContasAPagarParcelaValorLiquido>'+emp.valorTotal.toFixed(2)+'</ContasAPagarParcelaValorLiquido><ContasAPagarParcelaMoeda>'+SAD_CONFIG.moeda+'</ContasAPagarParcelaMoeda><ContasAPagarParcelaTipoDocumento>'+SAD_CONFIG.tdDocumento+'</ContasAPagarParcelaTipoDocumento><ContasAPagarParcelaCompetencia>'+lote.comp+'</ContasAPagarParcelaCompetencia></SDTContasAPagarParcela.SDTContasAPagarParcelaItem></Parcela><Rateio>'+rateioXml+'</Rateio><Previsao/></met:Sdtnewsad></WsGaService.NEWSAD></soapenv:Body></soapenv:Envelope>';
+        var sadText=await chamarStarSoft(sadXml,'NEWSAD');
+        var sadStatus=sadText.match(/<OpStatus>(.*?)<\/OpStatus>/);
+        var sadCod=sadText.match(/<OpCodigo>(.*?)<\/OpCodigo>/);
+        var sadDesc=sadText.match(/<OpDescricao>(.*?)<\/OpDescricao>/);
+        if(sadStatus&&sadStatus[1]==='1'){
+          logProg('   SAD criada! Cod: '+(sadCod?sadCod[1]:'?')+' | R$ '+emp.valorTotal.toLocaleString('pt-BR',{minimumFractionDigits:2}),'#66BB6A');
+          totalCriadas++;
+          if(typeof addLog==='function') addLog('SAD criada - '+emp.empInfo.nome+' comp '+lote.label+' - R$ '+emp.valorTotal.toFixed(2));
+        } else {
+          logProg('   Erro: '+(sadDesc?sadDesc[1]:'Erro desconhecido'),'#EF5350');
+          totalErros++;
+        }
+      } catch(err){
+        logProg('   Erro: '+err.message,'#EF5350');
+        totalErros++;
+      }
+    }
+  }
+  logProg('');
+  logProg('══════════════════════════════════════','#FFD700');
+  logProg('FINALIZADO! SADs criadas: '+totalCriadas+' | Erros: '+totalErros,totalErros>0?'#FFA726':'#66BB6A');
+  document.getElementById('btnFecharProgress').style.display='inline-block';
+}
+
 </script>
 
 <div class="list-bg" id="listBg" onclick="if(event.target===this)closeList()">
@@ -1256,6 +1413,7 @@ loadDesksFromSupa();
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
           <h3 style="margin:0">Ocupação geral</h3>
           <button onclick="enviarEmailOcupacao()" style="background:#0F4C81;color:#fff;border:none;padding:6px 12px;border-radius:7px;font-size:11px;cursor:pointer;font-weight:600">📧 Enviar por E-mail</button>
+          <button onclick="criarSAD()" style="background:#7B2D00;color:#fff;border:none;padding:6px 12px;border-radius:7px;font-size:11px;cursor:pointer;font-weight:600;margin-left:8px">💰 CRIAR SAD</button>
         </div>
         <div class="pizza-wrap">
           <svg class="pizza-svg" id="dashPizza" width="120" height="120" viewBox="0 0 120 120"></svg>
@@ -1445,5 +1603,47 @@ loadDesksFromSupa();
   </div>
 </div>
 
+
+<div id="sadPreviewBg" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9999;overflow:auto">
+  <div style="background:#1a1a2e;color:#fff;max-width:720px;margin:40px auto;border-radius:12px;padding:24px;font-family:monospace">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 style="margin:0;color:#FFD700">💰 CRIAR SAD — Preview</h2>
+      <button onclick="document.getElementById('sadPreviewBg').style.display='none'" style="background:transparent;border:1px solid #666;color:#fff;padding:4px 10px;border-radius:6px;cursor:pointer">✕ Fechar</button>
+    </div>
+    <div id="sadPreviewLog" style="background:#0d0d1a;padding:16px;border-radius:8px;min-height:150px;max-height:400px;overflow-y:auto;font-size:12px;line-height:1.8;white-space:pre-wrap"></div>
+    <div style="margin-top:16px;text-align:right">
+      <button onclick="abrirFormCompetencias()" style="background:#2e7d32;color:#fff;border:none;padding:8px 20px;border-radius:7px;font-size:12px;cursor:pointer;font-weight:600">➡️ CONFIRMAR — Definir Competências</button>
+      <button onclick="document.getElementById('sadPreviewBg').style.display='none'" style="background:#7f1d1d;color:#fff;border:none;padding:8px 20px;border-radius:7px;font-size:12px;cursor:pointer;font-weight:600;margin-left:8px">❌ Cancelar</button>
+    </div>
+  </div>
+</div>
+<div id="sadCompBg" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:10000;overflow:auto">
+  <div style="background:#1a1a2e;color:#fff;max-width:560px;margin:80px auto;border-radius:12px;padding:28px;font-family:sans-serif">
+    <h2 style="margin:0 0 8px;color:#FFD700">📅 Competências e Vencimentos</h2>
+    <p style="color:#aaa;font-size:13px;margin:0 0 20px">Preencha as competências e vencimentos. Deixe em branco as que não usar.</p>
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr style="color:#FFD700;font-size:13px"><th style="text-align:left;padding:6px 8px">#</th><th style="text-align:left;padding:6px 8px">Competência (MM/AAAA)</th><th style="text-align:left;padding:6px 8px">Vencimento (DD/MM/AAAA)</th></tr></thead>
+      <tbody>
+        <tr><td style="padding:8px;color:#aaa">1</td><td style="padding:4px 8px"><input id="comp1" type="text" placeholder="07/2026" maxlength="7" style="width:120px;padding:6px;border-radius:6px;border:1px solid #444;background:#0d0d1a;color:#fff;font-size:13px" oninput="formatComp(this)"></td><td style="padding:4px 8px"><input id="venc1" type="text" placeholder="20/07/2026" maxlength="10" style="width:140px;padding:6px;border-radius:6px;border:1px solid #444;background:#0d0d1a;color:#fff;font-size:13px" oninput="formatVenc(this)"></td></tr>
+        <tr><td style="padding:8px;color:#aaa">2</td><td style="padding:4px 8px"><input id="comp2" type="text" placeholder="08/2026" maxlength="7" style="width:120px;padding:6px;border-radius:6px;border:1px solid #444;background:#0d0d1a;color:#fff;font-size:13px" oninput="formatComp(this)"></td><td style="padding:4px 8px"><input id="venc2" type="text" placeholder="20/08/2026" maxlength="10" style="width:140px;padding:6px;border-radius:6px;border:1px solid #444;background:#0d0d1a;color:#fff;font-size:13px" oninput="formatVenc(this)"></td></tr>
+        <tr><td style="padding:8px;color:#aaa">3</td><td style="padding:4px 8px"><input id="comp3" type="text" placeholder="09/2026" maxlength="7" style="width:120px;padding:6px;border-radius:6px;border:1px solid #444;background:#0d0d1a;color:#fff;font-size:13px" oninput="formatComp(this)"></td><td style="padding:4px 8px"><input id="venc3" type="text" placeholder="20/09/2026" maxlength="10" style="width:140px;padding:6px;border-radius:6px;border:1px solid #444;background:#0d0d1a;color:#fff;font-size:13px" oninput="formatVenc(this)"></td></tr>
+      </tbody>
+    </table>
+    <div id="sadCompErro" style="color:#EF5350;font-size:12px;margin-top:8px;min-height:18px"></div>
+    <div style="margin-top:20px;display:flex;gap:10px;justify-content:flex-end">
+      <button onclick="executarCriarSADs()" style="background:#2e7d32;color:#fff;border:none;padding:10px 24px;border-radius:7px;font-size:13px;cursor:pointer;font-weight:700">🚀 GERAR SADs no StarSoft</button>
+      <button onclick="document.getElementById('sadCompBg').style.display='none'" style="background:#7f1d1d;color:#fff;border:none;padding:10px 18px;border-radius:7px;font-size:13px;cursor:pointer;font-weight:600">❌ Cancelar</button>
+    </div>
+  </div>
+</div>
+<div id="sadProgressBg" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:10001;overflow:auto">
+  <div style="background:#1a1a2e;color:#fff;max-width:700px;margin:40px auto;border-radius:12px;padding:24px;font-family:monospace">
+    <h2 style="margin:0 0 16px;color:#FFD700">🚀 Criando SADs no StarSoft...</h2>
+    <div id="sadProgressLog" style="background:#0d0d1a;padding:16px;border-radius:8px;min-height:200px;max-height:500px;overflow-y:auto;font-size:12px;line-height:1.8;white-space:pre-wrap"></div>
+    <div style="margin-top:12px;text-align:right">
+      <button id="btnFecharProgress" onclick="document.getElementById('sadProgressBg').style.display='none'" style="display:none;background:#555;color:#fff;border:none;padding:8px 20px;border-radius:7px;font-size:12px;cursor:pointer">✕ Fechar</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
