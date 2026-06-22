@@ -1301,7 +1301,7 @@ function abrirFormCompetencias(){
   document.getElementById('sadCompErro').textContent='';
 }
 
-function parseCompetencia(val){var parts=val.split('/');if(parts.length!==2)return null;var mm=parts[0].padStart(2,'0');var aaaa=parts[1];if(mm.length!==2||aaaa.length!==4)return null;return {comp:aaaa+mm, compDate:'01/'+mm+'/'+aaaa};}
+function parseCompetencia(val){var parts=val.split('/');if(parts.length!==2)return null;var mm=parts[0].padStart(2,'0');var aaaa=parts[1];if(mm.length!==2||aaaa.length!==4)return null;return {comp:aaaa+mm, compDate:aaaa+'-'+mm+'-01'};}
 function parseVencimento(val){var parts=val.split('/');if(parts.length!==3)return null;var dd=parts[0].padStart(2,'0');var mm=parts[1].padStart(2,'0');var aaaa=parts[2];if(aaaa.length!==4)return null;return aaaa+'-'+mm+'-'+dd;}
 
 async function chamarStarSoft(xmlBody,action){
