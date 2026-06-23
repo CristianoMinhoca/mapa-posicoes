@@ -1368,7 +1368,7 @@ async function executarCriarSADs(){
           if(typeof addLog==='function') addLog('SAD criada - '+emp.empInfo.nome+' comp '+lote.label+' - R$ '+emp.valorTotal.toFixed(2));
           try {
             logProg('   📁 Enviando PDF ao OneDrive...','#FFA726');
-            var uploadResp=await fetch('http://localhost:3000',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'UPLOAD_ONEDRIVE',ukey:sadUkey,numero_sad:sadCodigo,empresa_cod:emp.empInfo.cod,data_vencimento:lote.venc})});
+            var uploadResp=await fetch('http://10.130.101.40:3000',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'UPLOAD_ONEDRIVE',ukey:sadUkey,numero_sad:sadCodigo,empresa_cod:emp.empInfo.cod,data_vencimento:lote.venc})});
             var uploadData=await uploadResp.json();
             if(uploadData.success){logProg('   ✅ PDF salvo: '+uploadData.caminho,'#66BB6A');}
             else{logProg('   ⚠️ Erro OneDrive - verifique manualmente','#FFA726');}
