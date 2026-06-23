@@ -1367,8 +1367,17 @@ async function executarCriarSADs(){
           totalCriadas++;
           if(typeof addLog==='function') addLog('SAD criada - '+emp.empInfo.nome+' comp '+lote.label+' - R$ '+emp.valorTotal.toFixed(2));
           try {
+            // Buscar número real da SAD via STATUSSAD
+            var numeroReal = sadCodigo;
+            try {
+              var statusXml='<?xml version="1.0" encoding="utf-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:wsg="WSGAService" xmlns:wsga="WSGA"><soapenv:Header/><soapenv:Body><WSGAService.STATUSSAD><Sdtstatussad><SessionId>'+sessionId+'</SessionId><ContasAPagarEmpresa>'+emp.empInfo.cod+'</ContasAPagarEmpresa><ContasAPagarCod></ContasAPagarCod><ContasAPagarUkey>'+sadUkey+'</ContasAPagarUkey></Sdtstatussad></WSGAService.STATUSSAD></soapenv:Body></soapenv:Envelope>';
+              var statusText=await chamarStarSoft(statusXml,'STATUSSAD');
+              var numMatch=statusText.match(/<OpCodigo>(.*?)<\/OpCodigo>/);
+              if(numMatch&&numMatch[1]) numeroReal=numMatch[1];
+              logProg('   Número real SAD: '+numeroReal,'#aaa');
+            } catch(eStatus){ console.log('STATUSSAD erro:',eStatus.message); }
             logProg('   📁 Enviando PDF ao OneDrive...','#FFA726');
-            var uploadResp=await fetch('http://10.130.101.40:3000',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'UPLOAD_ONEDRIVE',ukey:sadUkey,numero_sad:sadCodigo,empresa_cod:emp.empInfo.cod,data_vencimento:lote.venc})});
+            var uploadResp=await fetch('http://10.130.101.40:3000',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'UPLOAD_ONEDRIVE',ukey:sadUkey,numero_sad:numeroReal,empresa_cod:emp.empInfo.cod,data_vencimento:lote.venc})});
             var uploadData=await uploadResp.json();
             if(uploadData.success){logProg('   ✅ PDF salvo: '+uploadData.caminho,'#66BB6A');}
             else{logProg('   ⚠️ Erro OneDrive - verifique manualmente','#FFA726');}
