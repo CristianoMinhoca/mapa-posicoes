@@ -1383,7 +1383,9 @@ async function executarCriarSADs(){
             else{logProg('   ⚠️ Erro OneDrive - verifique manualmente','#FFA726');}
           } catch(eUp){logProg('   ⚠️ OneDrive: '+eUp.message,'#FFA726');}
         } else {
-          logProg('   Erro: '+(sadDesc?sadDesc[1]:'Erro desconhecido'),'#EF5350');
+          var todosErros=sadText.match(/<OpDescricao>(.*?)<\/OpDescricao>/g)||[];
+          var msgErros=todosErros.map(function(m){return m.replace(/<[^>]+>/g,'');}).filter(function(m){return m.trim()!=='';}).join(' | ');
+          logProg('   Erro: '+(msgErros||'Erro desconhecido'),'#EF5350');
           totalErros++;
         }
       } catch(err){
