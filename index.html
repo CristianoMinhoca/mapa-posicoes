@@ -1346,7 +1346,8 @@ async function executarCriarSADs(){
       logProg('\nCriando SAD: '+emp.empInfo.nome+' (Empresa '+emp.empInfo.cod+')...','#4FC3F7');
       try{
         var authXml='<?xml version="1.0" encoding="utf-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:met="MetodosWeb" xmlns:wsga="WSGA"><soapenv:Header/><soapenv:Body><WsGaService.AUTENTICALOGIN><Sdtautenticalogin><AppLogin>'+SAD_CONFIG.appLogin+'</AppLogin><AppHost>'+SAD_CONFIG.appHost+'</AppHost><AppKey>'+SAD_CONFIG.appKey+'</AppKey><AppEmpresa>'+emp.empInfo.cod+'</AppEmpresa></Sdtautenticalogin></WsGaService.AUTENTICALOGIN></soapenv:Body></soapenv:Envelope>';
-        var authText=await chamarStarSoft(authXml,'AUTENTICALOGIN');
+        var authResp=await chamarStarSoft(authXml,'AUTENTICALOGIN');
+        var authText=authResp.result||'';
         var sessionMatch=authText.match(/<OpUkey>(.*?)<\/OpUkey>/);
         var statusMatch=authText.match(/<OpStatus>(.*?)<\/OpStatus>/);
         if(!sessionMatch||!statusMatch||statusMatch[1]!=='1'){
