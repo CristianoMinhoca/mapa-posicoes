@@ -1396,6 +1396,190 @@ async function executarCriarSADs(){
   document.getElementById('btnFecharProgress').style.display='inline-block';
 }
 
+
+// ── CRIAR REC ─────────────────────────────────────────────────────────────────
+var REC_CONFIG = {
+  appLogin: 'admincsc',
+  appHost: '201.76.181.43',
+  appKey: '1956627D5DD6B6AB8668E3D0261FFF91',
+  tdDocumento: 'TD-0000488',
+  empresaCod: '81',
+  moeda: 'SMBR',
+  valorPorPessoa: 1500.00
+};
+
+// Definição das RECs baseada na planilha
+// Cada item = 1 REC a criar na empresa 81
+// fornecedorCod = UKey ou código do cliente no StarSoft
+var REC_LISTA = [
+  { empresa:'PALLAS/CHAIRMAN', fornecedorCod:'F1456',        fornecedorNome:'PALLAS OPERADORA TURISTICA LTDA', qtd:70, rateio:[{crd:'81.204.0002', pct:100}] },
+  { empresa:'EXCEDENTE',       fornecedorCod:'719618602569', fornecedorNome:'EXCEDENTE DE POSICAO',             qtd:30, rateio:[{crd:'81.204.0012', pct:100}] },
+  { empresa:'CSC',             fornecedorCod:'06744',        fornecedorNome:'ADM CENTRAL',                      qtd:28, rateio:[{crd:'81.204.0004', pct:100}] },
+  { empresa:'4BTS',            fornecedorCod:'04138584000117',fornecedorNome:'PRESC VIAGENS E TURISMO LTDA',    qtd:26, rateio:[{crd:'81.204.0003', pct:100}] },
+  { empresa:'SEDE',            fornecedorCod:'322655534899', fornecedorNome:'SEDE MHS',                         qtd:5,  rateio:[{crd:'81.203.0002', pct:60, qtd:3},{crd:'81.203.0003', pct:40, qtd:2}] },
+  { empresa:'POPTUR',          fornecedorCod:'401654',       fornecedorNome:'ASSETUR ASSESSORIA VIAGENS E TURISMO LTDA', qtd:4, rateio:[{crd:'81.204.0013', pct:100}] },
+  { empresa:'SBT',             fornecedorCod:'401654',       fornecedorNome:'ASSETUR ASSESSORIA VIAGENS E TURISMO LTDA', qtd:3, rateio:[{crd:'81.204.0008', pct:100}] },
+  { empresa:'NEST',            fornecedorCod:'280725',       fornecedorNome:'INTERNACIONAL OPERADORA DE VIAGENS LTDA',   qtd:3, rateio:[{crd:'81.204.0001', pct:100}] },
+  { empresa:'COPA',            fornecedorCod:'759701472651', fornecedorNome:'TORCIDA BRASIL',                   qtd:2, rateio:[{crd:'81.204.0007', pct:100}] },
+  { empresa:'TVEX',            fornecedorCod:'40511820379',  fornecedorNome:'TEVX MOTORS GROUP LTDA',           qtd:2, rateio:[{crd:'81.204.0014', pct:100}] },
+  { empresa:'JAT',             fornecedorCod:'07228',        fornecedorNome:'JAT ADMINISTRACAO DE VENS LTDA',   qtd:2, rateio:[{crd:'81.204.0010', pct:100}] }
+];
+
+function logREC(msg,cor){cor=cor||'#fff';var el=document.getElementById('recProgressLog');if(el){el.innerHTML+='<span style="color:'+cor+'">'+msg+'</span>\n';el.scrollTop=el.scrollHeight;}}
+
+function criarREC(){
+  // Mostrar modal de configuração igual ao SAD
+  var compAtual = document.getElementById('sadCompInput') ? document.getElementById('sadCompInput').value : '';
+  var vencAtual = document.getElementById('sadVencInput') ? document.getElementById('sadVencInput').value : '';
+
+  var bg = document.createElement('div');
+  bg.id = 'recBg';
+  bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;';
+  bg.innerHTML = '<div style="background:#1a1a2e;border-radius:16px;padding:28px;width:520px;max-height:85vh;overflow-y:auto;color:#fff;font-family:Arial">' +
+    '<h2 style="margin:0 0 16px;color:#00BFA5">📥 CRIAR REC — Contas a Receber</h2>' +
+    '<div style="margin-bottom:12px"><label style="font-size:12px;color:#aaa">Competência (MM/AAAA)</label><br>' +
+    '<input id="recCompInput" value="'+compAtual+'" placeholder="09/2026" style="width:100%;padding:8px;border-radius:6px;border:1px solid #444;background:#111;color:#fff;margin-top:4px" oninput="formatComp(this)"></div>' +
+    '<div style="margin-bottom:16px"><label style="font-size:12px;color:#aaa">Vencimento (DD/MM/AAAA)</label><br>' +
+    '<input id="recVencInput" value="'+vencAtual+'" placeholder="20/08/2026" style="width:100%;padding:8px;border-radius:6px;border:1px solid #444;background:#111;color:#fff;margin-top:4px" oninput="formatVenc(this)"></div>' +
+    '<div style="background:#111;border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;color:#aaa">' +
+    '<b style="color:#fff">RECs a criar na Empresa 81 - SEDE MHS:</b><br><br>' +
+    REC_LISTA.map(function(r){return '• '+r.empresa+' — '+r.qtd+' pessoas — R$ '+(r.qtd*REC_CONFIG.valorPorPessoa).toLocaleString('pt-BR',{minimumFractionDigits:2});}).join('<br>') +
+    '<br><br><b style="color:#FFD700">Total: '+REC_LISTA.reduce(function(s,r){return s+r.qtd;},0)+' pessoas — R$ '+(REC_LISTA.reduce(function(s,r){return s+r.qtd;},0)*REC_CONFIG.valorPorPessoa).toLocaleString('pt-BR',{minimumFractionDigits:2})+'</b>' +
+    '</div>' +
+    '<div style="display:flex;gap:10px">' +
+    '<button onclick="document.getElementById('recBg').remove()" style="flex:1;padding:10px;border-radius:8px;border:none;background:#444;color:#fff;cursor:pointer">Cancelar</button>' +
+    '<button onclick="executarCriarRECs()" style="flex:2;padding:10px;border-radius:8px;border:none;background:#00695C;color:#fff;cursor:pointer;font-weight:700">▶ CRIAR RECs AGORA</button>' +
+    '</div>' +
+    '<div id="recProgressLog" style="margin-top:16px;background:#000;border-radius:8px;padding:12px;font-size:11px;font-family:monospace;white-space:pre-wrap;max-height:300px;overflow-y:auto;display:none"></div>' +
+    '<button id="btnFecharREC" onclick="document.getElementById('recBg').remove()" style="display:none;margin-top:10px;width:100%;padding:10px;border-radius:8px;border:none;background:#333;color:#fff;cursor:pointer">✕ Fechar</button>' +
+    '</div>';
+  document.body.appendChild(bg);
+}
+
+async function executarCriarRECs(){
+  var compRaw = document.getElementById('recCompInput').value.replace(/\D/g,'');
+  var vencRaw = document.getElementById('recVencInput').value;
+  if(compRaw.length < 6){ alert('Competência inválida'); return; }
+  var mm = compRaw.substring(0,2), aaaa = compRaw.substring(2,6);
+  var comp = aaaa+mm; // AAAAMM
+  var compData = aaaa+'-'+mm+'-01';
+
+  // Converter vencimento DD/MM/AAAA → AAAA-MM-DD
+  var vparts = vencRaw.split('/');
+  if(vparts.length < 3){ alert('Vencimento inválido'); return; }
+  var venc = vparts[2]+'-'+vparts[1]+'-'+vparts[0];
+  var loteLabel = mm+'/'+aaaa;
+
+  document.getElementById('recProgressLog').style.display='block';
+  document.getElementById('btnFecharREC').style.display='none';
+  logREC('Iniciando criação de RECs — Comp: '+loteLabel+' | Venc: '+vencRaw,'#FFD700');
+  logREC('══════════════════════════════════════','#555');
+
+  // Autenticar
+  var authXml = '<?xml version="1.0" encoding="utf-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:met="MetodosWeb" xmlns:wsga="WSGA"><soapenv:Header/><soapenv:Body><WsGaService.AUTENTICALOGIN><Sdtautenticalogin><AppLogin>'+REC_CONFIG.appLogin+'</AppLogin><AppHost>'+REC_CONFIG.appHost+'</AppHost><AppKey>'+REC_CONFIG.appKey+'</AppKey><AppEmpresa>'+REC_CONFIG.empresaCod+'</AppEmpresa></Sdtautenticalogin></WsGaService.AUTENTICALOGIN></soapenv:Body></soapenv:Envelope>';
+  var authResp = await chamarStarSoft(authXml,'AUTENTICALOGIN');
+  var authText = authResp.result||'';
+  var sessionMatch = authText.match(/<OpUkey>(.*?)<\/OpUkey>/);
+  var statusMatch = authText.match(/<OpStatus>(.*?)<\/OpStatus>/);
+  if(!sessionMatch||!statusMatch||statusMatch[1]!=='1'){
+    logREC('Erro de autenticação!','#EF5350');
+    document.getElementById('btnFecharREC').style.display='block';
+    return;
+  }
+  var sessionId = sessionMatch[1];
+  logREC('Autenticado na empresa 81 ✅','#66BB6A');
+  logREC('');
+
+  var totalCriadas=0, totalErros=0;
+
+  for(var i=0;i<REC_LISTA.length;i++){
+    var rec = REC_LISTA[i];
+    var valor = rec.qtd * REC_CONFIG.valorPorPessoa;
+    logREC('Criando REC: '+rec.empresa+' ('+rec.qtd+' pessoas — R$ '+valor.toLocaleString('pt-BR',{minimumFractionDigits:2})+')','#fff');
+
+    // Montar rateio XML
+    var rateioXml = '';
+    rec.rateio.forEach(function(r){
+      var valRateio = r.qtd ? r.qtd * REC_CONFIG.valorPorPessoa : valor;
+      var pct = r.qtd ? ((r.qtd/rec.qtd)*100).toFixed(6) : '100.000000';
+      rateioXml += '<SDTContasAReceberRateio.SDTContasAReceberRateioItem>' +
+        '<ContasAReceberRateioCRDCod>'+r.crd+'</ContasAReceberRateioCRDCod>' +
+        '<ContasAReceberRateioPercentual>'+pct+'</ContasAReceberRateioPercentual>' +
+        '<ContasAReceberRateioValor>'+valRateio.toFixed(2)+'</ContasAReceberRateioValor>' +
+        '</SDTContasAReceberRateio.SDTContasAReceberRateioItem>';
+    });
+
+    var comentario = '<![CDATA[Cobranca mapa posicoes '+comp+' - '+rec.qtd+' pessoa(s)]]>';
+    var crdPrincipal = rec.rateio[0].crd;
+
+    var recXml = '<?xml version="1.0" encoding="utf-8"?>' +
+      '<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:met="MetodosWeb" xmlns:wsga="WSGA">' +
+      '<soapenv:Header/><soapenv:Body><WsGaService.NEWREC><Sdtnewrec>' +
+      '<SessionId>'+sessionId+'</SessionId>' +
+      '<ContasAReceberEmpresa>'+REC_CONFIG.empresaCod+'</ContasAReceberEmpresa>' +
+      '<ContasAReceberCod></ContasAReceberCod>' +
+      '<ContasAReceberOrigem>C</ContasAReceberOrigem>' +
+      '<ContasAReceberCodOrigem>'+rec.fornecedorCod+'</ContasAReceberCodOrigem>' +
+      '<ContasAReceberCnpjOrigem></ContasAReceberCnpjOrigem>' +
+      '<ContasAReceberUkeyOrigem>'+rec.fornecedorCod+'</ContasAReceberUkeyOrigem>' +
+      '<ContasAReceberOrigemNomeFantasia></ContasAReceberOrigemNomeFantasia>' +
+      '<ContasAReceberOrigemRazaoSocial></ContasAReceberOrigemRazaoSocial>' +
+      '<ContasAReceberOrigemOrigem></ContasAReceberOrigemOrigem>' +
+      '<ContasAReceberOrigemTipoPessoa></ContasAReceberOrigemTipoPessoa>' +
+      '<ContasAReceberOrigemEndereco></ContasAReceberOrigemEndereco>' +
+      '<ContasAReceberOrigemCidade></ContasAReceberOrigemCidade>' +
+      '<ContasAReceberOrigemTipo></ContasAReceberOrigemTipo>' +
+      '<ContasAReceberOrigemClassificacao>0</ContasAReceberOrigemClassificacao>' +
+      '<ContasAReceberMoeda>'+REC_CONFIG.moeda+'</ContasAReceberMoeda>' +
+      '<ContasAReceberTipoDocumento>'+REC_CONFIG.tdDocumento+'</ContasAReceberTipoDocumento>' +
+      '<ContasAReceberCompetencia>'+comp+'</ContasAReceberCompetencia>' +
+      '<ContasAReceberValorTotal>'+valor.toFixed(2)+'</ContasAReceberValorTotal>' +
+      '<ContasAReceberQtdParcela>1</ContasAReceberQtdParcela>' +
+      '<ContasAReceberSerieDocumento></ContasAReceberSerieDocumento>' +
+      '<ContasAReceberComentario>'+comentario+'</ContasAReceberComentario>' +
+      '<ContasAReceberUkey></ContasAReceberUkey>' +
+      '<Parcela>' +
+      '<SDTContasAReceberParcela.SDTContasAReceberParcelaItem>' +
+      '<ContasAReceberParcelaOrdem>1</ContasAReceberParcelaOrdem>' +
+      '<ContasAReceberParcelaVctoNominal>'+venc+'</ContasAReceberParcelaVctoNominal>' +
+      '<ContasAReceberParcelaVctoReal>'+venc+'</ContasAReceberParcelaVctoReal>' +
+      '<ContasAReceberParcelaValorBruto>'+valor.toFixed(2)+'</ContasAReceberParcelaValorBruto>' +
+      '<ContasAReceberParcelaValorLiquido>'+valor.toFixed(2)+'</ContasAReceberParcelaValorLiquido>' +
+      '<ContasAReceberParcelaMoeda>'+REC_CONFIG.moeda+'</ContasAReceberParcelaMoeda>' +
+      '<ContasAReceberParcelaTipoDocumento>'+REC_CONFIG.tdDocumento+'</ContasAReceberParcelaTipoDocumento>' +
+      '<ContasAReceberParcelaCompetencia>'+comp+'</ContasAReceberParcelaCompetencia>' +
+      '<ContasAReceberParcelaComentario>'+comentario+'</ContasAReceberParcelaComentario>' +
+      '</SDTContasAReceberParcela.SDTContasAReceberParcelaItem>' +
+      '</Parcela>' +
+      '<Rateio>'+rateioXml+'</Rateio>' +
+      '</Sdtnewrec></WsGaService.NEWREC></soapenv:Body></soapenv:Envelope>';
+
+    try {
+      var recResp = await chamarStarSoft(recXml,'NEWREC');
+      var recText = recResp.result||'';
+      var recStatus = recText.match(/<OpStatus>(.*?)<\/OpStatus>/);
+      if(recStatus&&recStatus[1]==='1'){
+        var recCod = (recText.match(/<OpCodigo>(.*?)<\/OpCodigo>/)||[])[1]||'';
+        logREC('   ✅ REC criada! Cod: '+recCod+' | R$ '+valor.toLocaleString('pt-BR',{minimumFractionDigits:2}),'#66BB6A');
+        totalCriadas++;
+      } else {
+        var todosErros=recText.match(/<OpDescricao>(.*?)<\/OpDescricao>/g)||[];
+        var msgErros=todosErros.map(function(m){return m.replace(/<[^>]+>/g,'');}).filter(function(m){return m.trim()!=='';}).join(' | ');
+        logREC('   ❌ Erro: '+(msgErros||'Erro desconhecido'),'#EF5350');
+        totalErros++;
+      }
+    } catch(e){
+      logREC('   ❌ Erro: '+e.message,'#EF5350');
+      totalErros++;
+    }
+    logREC('');
+  }
+
+  logREC('══════════════════════════════════════','#555');
+  logREC('FINALIZADO! RECs criadas: '+totalCriadas+' | Erros: '+totalErros, totalErros>0?'#FFA726':'#66BB6A');
+  document.getElementById('btnFecharREC').style.display='block';
+}
+
 </script><div id="supaLoad" style="position: fixed; inset: 0px; background: rgba(0, 0, 0, 0.75); z-index: 99999; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 14px;"><div style="width:44px;height:44px;border:4px solid #6366f1;border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite"></div><div style="color:#fff;font-size:14px;font-family:Arial;font-weight:600">Conectando ao servidor...</div></div>
 
 <div class="list-bg" id="listBg" onclick="if(event.target===this)closeList()">
@@ -1431,6 +1615,7 @@ async function executarCriarSADs(){
           <h3 style="margin:0">Ocupação geral</h3>
           <button onclick="enviarEmailOcupacao()" style="background:#0F4C81;color:#fff;border:none;padding:6px 12px;border-radius:7px;font-size:11px;cursor:pointer;font-weight:600">📧 Enviar por E-mail</button>
           <button onclick="criarSAD()" style="background:#7B2D00;color:#fff;border:none;padding:6px 12px;border-radius:7px;font-size:11px;cursor:pointer;font-weight:600;margin-left:8px">💰 CRIAR SAD</button>
+          <button onclick="criarREC()" style="background:#00695C;color:#fff;border:none;padding:6px 12px;border-radius:7px;font-size:11px;cursor:pointer;font-weight:600;margin-left:8px">📥 CRIAR REC</button>
         </div>
         <div class="pizza-wrap">
           <svg class="pizza-svg" id="dashPizza" width="120" height="120" viewBox="0 0 120 120"></svg>
