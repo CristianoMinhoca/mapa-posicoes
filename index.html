@@ -1426,12 +1426,17 @@ function criarREC(){
   var totalQtd=REC_LISTA.reduce(function(s,r){return s+r.qtd;},0);
   var totalVal=(totalQtd*REC_CONFIG.valorPorPessoa).toLocaleString('pt-BR',{minimumFractionDigits:2});
   var listaHtml=REC_LISTA.map(function(r){return '&bull; '+r.empresa+' &mdash; '+r.qtd+' pess. &mdash; R$ '+(r.qtd*REC_CONFIG.valorPorPessoa).toLocaleString('pt-BR',{minimumFractionDigits:2});}).join('<br>');
-  var html='<div style="background:#1a1a2e;border-radius:16px;padding:28px;width:520px;max-height:85vh;overflow-y:auto;color:#fff;font-family:Arial">';
+  var html='<div style="background:#1a1a2e;border-radius:16px;padding:28px;width:560px;max-height:85vh;overflow-y:auto;color:#fff;font-family:Arial">';
   html+='<h2 style="margin:0 0 16px;color:#00BFA5">&#x1F4E5; CRIAR REC</h2>';
-  html+='<div style="margin-bottom:12px"><label style="font-size:12px;color:#aaa">Competência (MM/AAAA)</label><br>';
-  html+='<input id="recCompInput" value="'+compAtual+'" placeholder="09/2026" style="width:100%;padding:8px;border-radius:6px;border:1px solid #444;background:#111;color:#fff;margin-top:4px" oninput="formatComp(this)"></div>';
-  html+='<div style="margin-bottom:16px"><label style="font-size:12px;color:#aaa">Vencimento (DD/MM/AAAA)</label><br>';
-  html+='<input id="recVencInput" value="'+vencAtual+'" placeholder="20/08/2026" style="width:100%;padding:8px;border-radius:6px;border:1px solid #444;background:#111;color:#fff;margin-top:4px" oninput="formatVenc(this)"></div>';
+  html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px"><span style="font-size:11px;color:#aaa;font-weight:600">Competência (MM/AAAA)</span><span style="font-size:11px;color:#aaa;font-weight:600">Vencimento (DD/MM/AAAA)</span></div>';
+  for(var ri=1;ri<=3;ri++){
+    var cv=ri===1?compAtual:'', vv=ri===1?vencAtual:'';
+    html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">';
+    html+='<input id="recComp'+ri+'" value="'+cv+'" placeholder="09/2026" style="padding:8px;border-radius:6px;border:1px solid #444;background:#111;color:#fff" oninput="formatComp(this)">';
+    html+='<input id="recVenc'+ri+'" value="'+vv+'" placeholder="20/08/2026" style="padding:8px;border-radius:6px;border:1px solid #444;background:#111;color:#fff" oninput="formatVenc(this)">';
+    html+='</div>';
+  }
+  html+='<div id="recErro" style="color:#EF5350;font-size:12px;margin-bottom:8px"></div>';
   html+='<div style="background:#111;border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;color:#aaa">';
   html+='<b style="color:#fff">RECs a criar — Empresa 81:</b><br><br>'+listaHtml;
   html+='<br><br><b style="color:#FFD700">Total: '+totalQtd+' pess. &mdash; R$ '+totalVal+'</b></div>';
@@ -1447,20 +1452,24 @@ function criarREC(){
 }
 
 async function executarCriarRECs(){
-  var compRaw=document.getElementById('recCompInput').value.replace(/\D/g,'');
-  var vencRaw=document.getElementById('recVencInput').value;
-  if(compRaw.length<6){alert('Competência inválida');return;}
-  var mm=compRaw.substring(0,2),aaaa=compRaw.substring(2,6);
-  var comp=aaaa+mm;
-  var compData=aaaa+'-'+mm+'-01';
-  var vparts=vencRaw.split('/');
-  if(vparts.length<3){alert('Vencimento inválido');return;}
-  var venc=vparts[2]+'-'+vparts[1]+'-'+vparts[0];
-  var loteLabel=mm+'/'+aaaa;
+  var erroEl=document.getElementById('recErro');
+  erroEl.textContent='';
+  var lotes=[];
+  for(var ri=1;ri<=3;ri++){
+    var compVal=(document.getElementById('recComp'+ri)||{}).value||'';
+    var vencVal=(document.getElementById('recVenc'+ri)||{}).value||'';
+    compVal=compVal.trim(); vencVal=vencVal.trim();
+    if(!compVal&&!vencVal) continue;
+    if(!compVal||!vencVal){erroEl.textContent='Linha '+ri+': preencha competência E vencimento ou deixe ambos em branco.';return;}
+    var cp=parseCompetencia(compVal);
+    var vp=parseVencimento(vencVal);
+    if(!cp){erroEl.textContent='Competência '+ri+' inválida. Use MM/AAAA.';return;}
+    if(!vp){erroEl.textContent='Vencimento '+ri+' inválido. Use DD/MM/AAAA.';return;}
+    lotes.push({comp:cp.comp,compDate:cp.compDate,venc:vp,label:compVal,vencLabel:vencVal});
+  }
+  if(lotes.length===0){erroEl.textContent='Preencha pelo menos 1 competência e vencimento.';return;}
   document.getElementById('recProgressLog').style.display='block';
   document.getElementById('btnFecharREC').style.display='none';
-  logREC('Iniciando RECs — Comp: '+loteLabel+' | Venc: '+vencRaw,'#FFD700');
-  logREC('══════════════════════════════════════','#555');
   var authXml='<?xml version="1.0" encoding="utf-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:met="MetodosWeb" xmlns:wsga="WSGA"><soapenv:Header/><soapenv:Body><WsGaService.AUTENTICALOGIN><Sdtautenticalogin><AppLogin>'+REC_CONFIG.appLogin+'</AppLogin><AppHost>'+REC_CONFIG.appHost+'</AppHost><AppKey>'+REC_CONFIG.appKey+'</AppKey><AppEmpresa>'+REC_CONFIG.empresaCod+'</AppEmpresa></Sdtautenticalogin></WsGaService.AUTENTICALOGIN></soapenv:Body></soapenv:Envelope>';
   var authResp=await chamarStarSoft(authXml,'AUTENTICALOGIN');
   var authText=authResp.result||'';
@@ -1469,56 +1478,61 @@ async function executarCriarRECs(){
   if(!sessionMatch||!statusMatch||statusMatch[1]!=='1'){logREC('Erro de autenticação!','#EF5350');document.getElementById('btnFecharREC').style.display='block';return;}
   var sessionId=sessionMatch[1];
   logREC('Autenticado na empresa 81 ✅','#66BB6A');
-  logREC('');
   var totalCriadas=0,totalErros=0;
-  for(var i=0;i<REC_LISTA.length;i++){
-    var rec=REC_LISTA[i];
-    var valor=rec.qtd*REC_CONFIG.valorPorPessoa;
-    logREC('Criando REC: '+rec.empresa+' ('+rec.qtd+' pess. — R$ '+valor.toLocaleString('pt-BR',{minimumFractionDigits:2})+')','#fff');
-    var rateioXml='';
-    rec.rateio.forEach(function(r){
-      var valRateio=r.qtd?r.qtd*REC_CONFIG.valorPorPessoa:valor;
-      var pct=r.qtd?((r.qtd/rec.qtd)*100).toFixed(6):'100.000000';
-      rateioXml+='<SDTContasAReceberRateio.SDTContasAReceberRateioItem><ContasAReceberRateioCRDCod>'+r.crd.replace(/\./g,'')+'</ContasAReceberRateioCRDCod><ContasAReceberRateioPercentual>'+pct+'</ContasAReceberRateioPercentual><ContasAReceberRateioValor>'+valRateio.toFixed(2)+'</ContasAReceberRateioValor></SDTContasAReceberRateio.SDTContasAReceberRateioItem>';
-    });
-    var comentario='<![CDATA[Cobranca mapa posicoes '+comp+' - '+rec.qtd+' pessoa(s)]]>';
-    var recXml='<?xml version="1.0" encoding="utf-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:met="MetodosWeb" xmlns:wsga="WSGA"><soapenv:Header/><soapenv:Body><WsGaService.NEWREC><Sdtnewrec>'
-      +'<SessionId>'+sessionId+'</SessionId>'
-      +'<ContasAReceberEmpresa>'+REC_CONFIG.empresaCod+'</ContasAReceberEmpresa>'
-      +'<ContasAReceberCod></ContasAReceberCod>'
-      +'<ContasAReceberOrigem>'+rec.origem+'</ContasAReceberOrigem>'
-      +'<ContasAReceberCodOrigem></ContasAReceberCodOrigem>'
-      +'<ContasAReceberCnpjOrigem>'+rec.cnpj+'</ContasAReceberCnpjOrigem>'
-      +'<ContasAReceberUkeyOrigem>'+rec.ukey+'</ContasAReceberUkeyOrigem>'
-      +'<ContasAReceberOrigemNomeFantasia></ContasAReceberOrigemNomeFantasia>'
-      +'<ContasAReceberOrigemRazaoSocial></ContasAReceberOrigemRazaoSocial>'
-      +'<ContasAReceberOrigemOrigem></ContasAReceberOrigemOrigem>'
-      +'<ContasAReceberOrigemTipoPessoa></ContasAReceberOrigemTipoPessoa>'
-      +'<ContasAReceberOrigemEndereco></ContasAReceberOrigemEndereco>'
-      +'<ContasAReceberOrigemCidade></ContasAReceberOrigemCidade>'
-      +'<ContasAReceberOrigemTipo></ContasAReceberOrigemTipo>'
-      +'<ContasAReceberOrigemClassificacao>0</ContasAReceberOrigemClassificacao>'
-      +'<ContasAReceberMoeda>'+REC_CONFIG.moeda+'</ContasAReceberMoeda>'
-      +'<ContasAReceberTipoDocumento>'+REC_CONFIG.tdDocumento+'</ContasAReceberTipoDocumento>'
-      +'<ContasAReceberCompetencia>'+comp+'</ContasAReceberCompetencia>'
-      +'<ContasAReceberValorTotal>'+valor.toFixed(2)+'</ContasAReceberValorTotal>'
-      +'<ContasAReceberQtdParcela>1</ContasAReceberQtdParcela>'
-      +'<ContasAReceberSerieDocumento>MAP'+comp+'</ContasAReceberSerieDocumento>'
-      +'<ContasAReceberComentario>'+comentario+'</ContasAReceberComentario>'
-      +'<ContasAReceberUkey></ContasAReceberUkey>'
-      +'<Parcela><SDTContasAReceberParcela.SDTContasAReceberParcelaItem>'
-      +'<ContasAReceberParcelaOrdem>1</ContasAReceberParcelaOrdem>'
-      +'<ContasAReceberParcelaVctoNominal>'+venc+'</ContasAReceberParcelaVctoNominal>'
-      +'<ContasAReceberParcelaVctoReal>'+venc+'</ContasAReceberParcelaVctoReal>'
-      +'<ContasAReceberParcelaValorBruto>'+valor.toFixed(2)+'</ContasAReceberParcelaValorBruto>'
-      +'<ContasAReceberParcelaValorLiquido>'+valor.toFixed(2)+'</ContasAReceberParcelaValorLiquido>'
-      +'<ContasAReceberParcelaMoeda>'+REC_CONFIG.moeda+'</ContasAReceberParcelaMoeda>'
-      +'<ContasAReceberParcelaTipoDocumento>'+REC_CONFIG.tdDocumento+'</ContasAReceberParcelaTipoDocumento>'
-      +'<ContasAReceberParcelaCompetencia>'+comp+'</ContasAReceberParcelaCompetencia>'
-      +'<ContasAReceberParcelaComentario>'+comentario+'</ContasAReceberParcelaComentario>'
-      +'</SDTContasAReceberParcela.SDTContasAReceberParcelaItem></Parcela>'
-      +'<Rateio>'+rateioXml+'</Rateio>'
-      +'</Sdtnewrec></WsGaService.NEWREC></soapenv:Body></soapenv:Envelope>';
+  for(var l=0;l<lotes.length;l++){
+    var lote=lotes[l];
+    var comp=lote.comp, venc=lote.venc;
+    logREC('');
+    logREC('COMPETÊNCIA '+lote.label+' | Vencimento: '+lote.vencLabel,'#FFD700');
+    logREC('══════════════════════════════════════','#555');
+    for(var i=0;i<REC_LISTA.length;i++){
+      var rec=REC_LISTA[i];
+      var valor=rec.qtd*REC_CONFIG.valorPorPessoa;
+      logREC('Criando REC: '+rec.empresa+' ('+rec.qtd+' pess. — R$ '+valor.toLocaleString('pt-BR',{minimumFractionDigits:2})+')','#fff');
+      var rateioXml='';
+      rec.rateio.forEach(function(r){
+        var valRateio=r.qtd?r.qtd*REC_CONFIG.valorPorPessoa:valor;
+        var pct=r.qtd?((r.qtd/rec.qtd)*100).toFixed(6):'100.000000';
+        rateioXml+='<SDTContasAReceberRateio.SDTContasAReceberRateioItem><ContasAReceberRateioCRDCod>'+r.crd.replace(/\./g,'')+'</ContasAReceberRateioCRDCod><ContasAReceberRateioPercentual>'+pct+'</ContasAReceberRateioPercentual><ContasAReceberRateioValor>'+valRateio.toFixed(2)+'</ContasAReceberRateioValor></SDTContasAReceberRateio.SDTContasAReceberRateioItem>';
+      });
+      var comentario='<![CDATA[Cobranca mapa posicoes '+comp+' - '+rec.qtd+' pessoa(s)]]>';
+      var recXml='<?xml version="1.0" encoding="utf-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:met="MetodosWeb" xmlns:wsga="WSGA"><soapenv:Header/><soapenv:Body><WsGaService.NEWREC><Sdtnewrec>'
+        +'<SessionId>'+sessionId+'</SessionId>'
+        +'<ContasAReceberEmpresa>'+REC_CONFIG.empresaCod+'</ContasAReceberEmpresa>'
+        +'<ContasAReceberCod></ContasAReceberCod>'
+        +'<ContasAReceberOrigem>'+rec.origem+'</ContasAReceberOrigem>'
+        +'<ContasAReceberCodOrigem></ContasAReceberCodOrigem>'
+        +'<ContasAReceberCnpjOrigem>'+rec.cnpj+'</ContasAReceberCnpjOrigem>'
+        +'<ContasAReceberUkeyOrigem>'+rec.ukey+'</ContasAReceberUkeyOrigem>'
+        +'<ContasAReceberOrigemNomeFantasia></ContasAReceberOrigemNomeFantasia>'
+        +'<ContasAReceberOrigemRazaoSocial></ContasAReceberOrigemRazaoSocial>'
+        +'<ContasAReceberOrigemOrigem></ContasAReceberOrigemOrigem>'
+        +'<ContasAReceberOrigemTipoPessoa></ContasAReceberOrigemTipoPessoa>'
+        +'<ContasAReceberOrigemEndereco></ContasAReceberOrigemEndereco>'
+        +'<ContasAReceberOrigemCidade></ContasAReceberOrigemCidade>'
+        +'<ContasAReceberOrigemTipo></ContasAReceberOrigemTipo>'
+        +'<ContasAReceberOrigemClassificacao>0</ContasAReceberOrigemClassificacao>'
+        +'<ContasAReceberMoeda>'+REC_CONFIG.moeda+'</ContasAReceberMoeda>'
+        +'<ContasAReceberTipoDocumento>'+REC_CONFIG.tdDocumento+'</ContasAReceberTipoDocumento>'
+        +'<ContasAReceberCompetencia>'+comp+'</ContasAReceberCompetencia>'
+        +'<ContasAReceberValorTotal>'+valor.toFixed(2)+'</ContasAReceberValorTotal>'
+        +'<ContasAReceberQtdParcela>1</ContasAReceberQtdParcela>'
+        +'<ContasAReceberSerieDocumento>MAP'+comp+'</ContasAReceberSerieDocumento>'
+        +'<ContasAReceberComentario>'+comentario+'</ContasAReceberComentario>'
+        +'<ContasAReceberUkey></ContasAReceberUkey>'
+        +'<Parcela><SDTContasAReceberParcela.SDTContasAReceberParcelaItem>'
+        +'<ContasAReceberParcelaOrdem>1</ContasAReceberParcelaOrdem>'
+        +'<ContasAReceberParcelaVctoNominal>'+venc+'</ContasAReceberParcelaVctoNominal>'
+        +'<ContasAReceberParcelaVctoReal>'+venc+'</ContasAReceberParcelaVctoReal>'
+        +'<ContasAReceberParcelaValorBruto>'+valor.toFixed(2)+'</ContasAReceberParcelaValorBruto>'
+        +'<ContasAReceberParcelaValorLiquido>'+valor.toFixed(2)+'</ContasAReceberParcelaValorLiquido>'
+        +'<ContasAReceberParcelaMoeda>'+REC_CONFIG.moeda+'</ContasAReceberParcelaMoeda>'
+        +'<ContasAReceberParcelaTipoDocumento>'+REC_CONFIG.tdDocumento+'</ContasAReceberParcelaTipoDocumento>'
+        +'<ContasAReceberParcelaCompetencia>'+comp+'</ContasAReceberParcelaCompetencia>'
+        +'<ContasAReceberParcelaComentario>'+comentario+'</ContasAReceberParcelaComentario>'
+        +'</SDTContasAReceberParcela.SDTContasAReceberParcelaItem></Parcela>'
+        +'<Rateio>'+rateioXml+'</Rateio>'
+        +'</Sdtnewrec></WsGaService.NEWREC></soapenv:Body></soapenv:Envelope>';
     try{
       var recResp=await chamarStarSoft(recXml,'NEWREC');
       var recText=recResp.result||'';
@@ -1533,8 +1547,9 @@ async function executarCriarRECs(){
         logREC('   Erro: '+(msgErros||'Erro desconhecido'),'#EF5350');
         totalErros++;
       }
-    }catch(e){logREC('   Erro: '+e.message,'#EF5350');totalErros++;}
-    logREC('');
+      }catch(e){logREC('   Erro: '+e.message,'#EF5350');totalErros++;}
+      logREC('');
+    }
   }
   logREC('══════════════════════════════════════','#555');
   logREC('FINALIZADO! RECs criadas: '+totalCriadas+' | Erros: '+totalErros,totalErros>0?'#FFA726':'#66BB6A');
