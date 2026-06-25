@@ -1479,7 +1479,7 @@ async function executarCriarRECs(){
     rec.rateio.forEach(function(r){
       var valRateio=r.qtd?r.qtd*REC_CONFIG.valorPorPessoa:valor;
       var pct=r.qtd?((r.qtd/rec.qtd)*100).toFixed(6):'100.000000';
-      rateioXml+='<SDTContasAReceberRateio.SDTContasAReceberRateioItem><ContasAReceberRateioCRDCod>'+r.crd+'</ContasAReceberRateioCRDCod><ContasAReceberRateioPercentual>'+pct+'</ContasAReceberRateioPercentual><ContasAReceberRateioValor>'+valRateio.toFixed(2)+'</ContasAReceberRateioValor></SDTContasAReceberRateio.SDTContasAReceberRateioItem>';
+      rateioXml+='<SDTContasAReceberRateio.SDTContasAReceberRateioItem><ContasAReceberRateioCRDCod>'+r.crd.replace(/\./g,'')+'</ContasAReceberRateioCRDCod><ContasAReceberRateioPercentual>'+pct+'</ContasAReceberRateioPercentual><ContasAReceberRateioValor>'+valRateio.toFixed(2)+'</ContasAReceberRateioValor></SDTContasAReceberRateio.SDTContasAReceberRateioItem>';
     });
     var comentario='<![CDATA[Cobranca mapa posicoes '+comp+' - '+rec.qtd+' pessoa(s)]]>';
     var recXml='<?xml version="1.0" encoding="utf-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:met="MetodosWeb" xmlns:wsga="WSGA"><soapenv:Header/><soapenv:Body><WsGaService.NEWREC><Sdtnewrec>'
@@ -1503,7 +1503,7 @@ async function executarCriarRECs(){
       +'<ContasAReceberCompetencia>'+comp+'</ContasAReceberCompetencia>'
       +'<ContasAReceberValorTotal>'+valor.toFixed(2)+'</ContasAReceberValorTotal>'
       +'<ContasAReceberQtdParcela>1</ContasAReceberQtdParcela>'
-      +'<ContasAReceberSerieDocumento></ContasAReceberSerieDocumento>'
+      +'<ContasAReceberSerieDocumento>MAP'+comp+'</ContasAReceberSerieDocumento>'
       +'<ContasAReceberComentario>'+comentario+'</ContasAReceberComentario>'
       +'<ContasAReceberUkey></ContasAReceberUkey>'
       +'<Parcela><SDTContasAReceberParcela.SDTContasAReceberParcelaItem>'
