@@ -1425,6 +1425,7 @@ var REC_LISTA = [
   { empresa:'JAT',             fornecedorCod:'07228',        fornecedorNome:'JAT ADMINISTRACAO DE VENS LTDA',   qtd:2, rateio:[{crd:'81.204.0010', pct:100}] }
 ];
 
+function fecharRecBg(){ var el=document.getElementById('recBg'); if(el) el.remove(); }
 function logREC(msg,cor){cor=cor||'#fff';var el=document.getElementById('recProgressLog');if(el){el.innerHTML+='<span style="color:'+cor+'">'+msg+'</span>\n';el.scrollTop=el.scrollHeight;}}
 
 function criarREC(){
@@ -1435,24 +1436,27 @@ function criarREC(){
   var bg = document.createElement('div');
   bg.id = 'recBg';
   bg.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;';
-  bg.innerHTML = '<div style="background:#1a1a2e;border-radius:16px;padding:28px;width:520px;max-height:85vh;overflow-y:auto;color:#fff;font-family:Arial">' +
-    '<h2 style="margin:0 0 16px;color:#00BFA5">📥 CRIAR REC — Contas a Receber</h2>' +
-    '<div style="margin-bottom:12px"><label style="font-size:12px;color:#aaa">Competência (MM/AAAA)</label><br>' +
-    '<input id="recCompInput" value="'+compAtual+'" placeholder="09/2026" style="width:100%;padding:8px;border-radius:6px;border:1px solid #444;background:#111;color:#fff;margin-top:4px" oninput="formatComp(this)"></div>' +
-    '<div style="margin-bottom:16px"><label style="font-size:12px;color:#aaa">Vencimento (DD/MM/AAAA)</label><br>' +
-    '<input id="recVencInput" value="'+vencAtual+'" placeholder="20/08/2026" style="width:100%;padding:8px;border-radius:6px;border:1px solid #444;background:#111;color:#fff;margin-top:4px" oninput="formatVenc(this)"></div>' +
-    '<div style="background:#111;border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;color:#aaa">' +
-    '<b style="color:#fff">RECs a criar na Empresa 81 - SEDE MHS:</b><br><br>' +
-    REC_LISTA.map(function(r){return '• '+r.empresa+' — '+r.qtd+' pessoas — R$ '+(r.qtd*REC_CONFIG.valorPorPessoa).toLocaleString('pt-BR',{minimumFractionDigits:2});}).join('<br>') +
-    '<br><br><b style="color:#FFD700">Total: '+REC_LISTA.reduce(function(s,r){return s+r.qtd;},0)+' pessoas — R$ '+(REC_LISTA.reduce(function(s,r){return s+r.qtd;},0)*REC_CONFIG.valorPorPessoa).toLocaleString('pt-BR',{minimumFractionDigits:2})+'</b>' +
-    '</div>' +
-    '<div style="display:flex;gap:10px">' +
-    '<button onclick="document.getElementById('recBg').remove()" style="flex:1;padding:10px;border-radius:8px;border:none;background:#444;color:#fff;cursor:pointer">Cancelar</button>' +
-    '<button onclick="executarCriarRECs()" style="flex:2;padding:10px;border-radius:8px;border:none;background:#00695C;color:#fff;cursor:pointer;font-weight:700">▶ CRIAR RECs AGORA</button>' +
-    '</div>' +
-    '<div id="recProgressLog" style="margin-top:16px;background:#000;border-radius:8px;padding:12px;font-size:11px;font-family:monospace;white-space:pre-wrap;max-height:300px;overflow-y:auto;display:none"></div>' +
-    '<button id="btnFecharREC" onclick="document.getElementById('recBg').remove()" style="display:none;margin-top:10px;width:100%;padding:10px;border-radius:8px;border:none;background:#333;color:#fff;cursor:pointer">✕ Fechar</button>' +
-    '</div>';
+  var listaHtml = REC_LISTA.map(function(r){return '&bull; '+r.empresa+' &mdash; '+r.qtd+' pessoas &mdash; R$ '+(r.qtd*REC_CONFIG.valorPorPessoa).toLocaleString('pt-BR',{minimumFractionDigits:2});}).join('<br>');
+  var totalQtd = REC_LISTA.reduce(function(s,r){return s+r.qtd;},0);
+  var totalVal = (totalQtd*REC_CONFIG.valorPorPessoa).toLocaleString('pt-BR',{minimumFractionDigits:2});
+  bg.innerHTML = '<div style="background:#1a1a2e;border-radius:16px;padding:28px;width:520px;max-height:85vh;overflow-y:auto;color:#fff;font-family:Arial">'
+    + '<h2 style="margin:0 0 16px;color:#00BFA5">&#x1F4E5; CRIAR REC &mdash; Contas a Receber</h2>'
+    + '<div style="margin-bottom:12px"><label style="font-size:12px;color:#aaa">Compet&ecirc;ncia (MM/AAAA)</label><br>'
+    + '<input id="recCompInput" value="' + compAtual + '" placeholder="09/2026" style="width:100%;padding:8px;border-radius:6px;border:1px solid #444;background:#111;color:#fff;margin-top:4px" oninput="formatComp(this)"></div>'
+    + '<div style="margin-bottom:16px"><label style="font-size:12px;color:#aaa">Vencimento (DD/MM/AAAA)</label><br>'
+    + '<input id="recVencInput" value="' + vencAtual + '" placeholder="20/08/2026" style="width:100%;padding:8px;border-radius:6px;border:1px solid #444;background:#111;color:#fff;margin-top:4px" oninput="formatVenc(this)"></div>'
+    + '<div style="background:#111;border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;color:#aaa">'
+    + '<b style="color:#fff">RECs a criar na Empresa 81 - SEDE MHS:</b><br><br>'
+    + listaHtml
+    + '<br><br><b style="color:#FFD700">Total: ' + totalQtd + ' pessoas &mdash; R$ ' + totalVal + '</b>'
+    + '</div>'
+    + '<div style="display:flex;gap:10px">'
+    + '<button onclick="fecharRecBg()" style="flex:1;padding:10px;border-radius:8px;border:none;background:#444;color:#fff;cursor:pointer">Cancelar</button>'
+    + '<button onclick="executarCriarRECs()" style="flex:2;padding:10px;border-radius:8px;border:none;background:#00695C;color:#fff;cursor:pointer;font-weight:700">&#x25B6; CRIAR RECs AGORA</button>'
+    + '</div>'
+    + '<div id="recProgressLog" style="margin-top:16px;background:#000;border-radius:8px;padding:12px;font-size:11px;font-family:monospace;white-space:pre-wrap;max-height:300px;overflow-y:auto;display:none"></div>'
+    + '<button id="btnFecharREC" onclick="fecharRecBg()" style="display:none;margin-top:10px;width:100%;padding:10px;border-radius:8px;border:none;background:#333;color:#fff;cursor:pointer">&#x2715; Fechar</button>'
+    + '</div>';
   document.body.appendChild(bg);
 }
 
