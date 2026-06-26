@@ -1417,12 +1417,20 @@ var REC_CONFIG_LISTA=[
 
 // Gerar REC_LISTA dinamicamente a partir do db (mapa atual)
 function gerarRecLista(){
-  // Contar ocupados por empresa
+  // Contar por emp (label igual ao dashboard) - LIVRE conta todos (ocupados e vagos)
   var contagem={};
   db.forEach(function(d){
-    if(d.status!=='OCUPADO') return;
-    if(!contagem[d.empresa]) contagem[d.empresa]=0;
-    contagem[d.empresa]++;
+    var key=d.emp||d.empresa;
+    // Para LIVRE: conta todos (igual ao dashboard)
+    // Para demais: conta só ocupados
+    if(key==='LIVRE'){
+      if(!contagem['LIVRE']) contagem['LIVRE']=0;
+      contagem['LIVRE']++;
+    } else {
+      if(d.status!=='OCUPADO') return;
+      if(!contagem[d.empresa]) contagem[d.empresa]=0;
+      contagem[d.empresa]++;
+    }
   });
 
   var lista=[];
@@ -1861,10 +1869,4 @@ async function executarCriarRECs(){
     <h2 style="margin:0 0 16px;color:#FFD700">🚀 Criando SADs no StarSoft...</h2>
     <div id="sadProgressLog" style="background:#0d0d1a;padding:16px;border-radius:8px;min-height:200px;max-height:500px;overflow-y:auto;font-size:12px;line-height:1.8;white-space:pre-wrap"></div>
     <div style="margin-top:12px;text-align:right">
-      <button id="btnFecharProgress" onclick="document.getElementById(&#39;sadProgressBg&#39;).style.display=&#39;none&#39;" style="display:none;background:#555;color:#fff;border:none;padding:8px 20px;border-radius:7px;font-size:12px;cursor:pointer">✕ Fechar</button>
-    </div>
-  </div>
-</div>
-
-
-</body></html>
+      <button
