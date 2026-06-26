@@ -1399,24 +1399,65 @@ async function executarCriarSADs(){
 
 // ── CRIAR REC ─────────────────────────────────────────────────────────────────
 var REC_CONFIG={appLogin:'admincsc',appHost:'201.76.181.43',appKey:'1956627D5DD6B6AB8668E3D0261FFF91',tdDocumento:'TD-0000488',empresaCod:'81',moeda:'SMBR',valorPorPessoa:1500.00};
-var REC_LISTA=[
-  {empresa:'PALLAS/CHAIRMAN',origem:'F',ukey:'',cnpj:'02633346000152',qtd:70,rateio:[{crd:'81.204.0002',pct:100}]},
-  {empresa:'EXCEDENTE',origem:'F',ukey:'WSGA_5A8A_E1AC8A9995',cnpj:'',qtd:30,rateio:[{crd:'81.204.0012',pct:100}]},
-  {empresa:'CSC',origem:'C',ukey:'WSGA_4A95_6B0A0470CE',cnpj:'',qtd:28,rateio:[{crd:'81.204.0004',pct:100}]},
-  {empresa:'4BTS',origem:'F',ukey:'',cnpj:'04138584000117',qtd:26,rateio:[{crd:'81.204.0003',pct:100}]},
-  {empresa:'SEDE',origem:'F',ukey:'WSGA_8E74_CC82F3F730',cnpj:'',qtd:5,rateio:[{crd:'81.203.0002',pct:60,qtd:3},{crd:'81.203.0003',pct:40,qtd:2}]},
-  {empresa:'POPTUR',origem:'F',ukey:'',cnpj:'00475516000192',qtd:4,rateio:[{crd:'81.204.0013',pct:100}]},
-  {empresa:'SBT',origem:'F',ukey:'',cnpj:'00475516000192',qtd:3,rateio:[{crd:'81.204.0008',pct:100}]},
-  {empresa:'NEST',origem:'C',ukey:'',cnpj:'21765089000157',qtd:3,rateio:[{crd:'81.204.0001',pct:100}]},
-  {empresa:'COPA',origem:'F',ukey:'',cnpj:'99320422999942',qtd:2,rateio:[{crd:'81.204.0007',pct:100}]},
-  {empresa:'TVEX',origem:'F',ukey:'WSGA_6208_2417AFCCAD',cnpj:'',qtd:2,rateio:[{crd:'81.204.0014',pct:100}]},
-  {empresa:'JAT',origem:'F',ukey:'',cnpj:'10457546000120',qtd:2,rateio:[{crd:'81.204.0010',pct:100}]}
+// Configuração das RECs - mapeamento de empresas do mapa para fornecedores
+// empresasMapa: array de nomes de empresa do mapa que pertencem a este fornecedor
+// Para SEDE: rateio especial - CRD 81.203.0002 para quem NÃO tem CRD 81.203.0003, e vice-versa
+var REC_CONFIG_LISTA=[
+  {label:'PALLAS/CHAIRMAN',empresasMapa:['PALLAS','CHAIRMAN'],origem:'F',ukey:'',cnpj:'02633346000152',crd:'81.204.0002'},
+  {label:'EXCEDENTE',empresasMapa:['EXCEDENTE','LIVRE'],origem:'F',ukey:'WSGA_5A8A_E1AC8A9995',cnpj:'',crd:'81.204.0012'},
+  {label:'CSC',empresasMapa:['CSC'],origem:'C',ukey:'WSGA_4A95_6B0A0470CE',cnpj:'',crd:'81.204.0004'},
+  {label:'4BTS',empresasMapa:['4BTS'],origem:'F',ukey:'',cnpj:'04138584000117',crd:'81.204.0003'},
+  {label:'POPTUR',empresasMapa:['POPTUR'],origem:'F',ukey:'',cnpj:'00475516000192',crd:'81.204.0013'},
+  {label:'SBT',empresasMapa:['SBT'],origem:'F',ukey:'',cnpj:'00475516000192',crd:'81.204.0008'},
+  {label:'NEST',empresasMapa:['NEST'],origem:'C',ukey:'',cnpj:'21765089000157',crd:'81.204.0001'},
+  {label:'COPA',empresasMapa:['COPA'],origem:'F',ukey:'',cnpj:'99320422999942',crd:'81.204.0007'},
+  {label:'TVEX',empresasMapa:['TVEX'],origem:'F',ukey:'WSGA_6208_2417AFCCAD',cnpj:'',crd:'81.204.0014'},
+  {label:'JAT',empresasMapa:['JAT'],origem:'F',ukey:'',cnpj:'10457546000120',crd:'81.204.0010'}
 ];
+
+// Gerar REC_LISTA dinamicamente a partir do db (mapa atual)
+function gerarRecLista(){
+  // Contar ocupados por empresa
+  var contagem={};
+  db.forEach(function(d){
+    if(d.status!=='OCUPADO') return;
+    if(!contagem[d.empresa]) contagem[d.empresa]=0;
+    contagem[d.empresa]++;
+  });
+
+  var lista=[];
+  REC_CONFIG_LISTA.forEach(function(cfg){
+    var qtd=0;
+    cfg.empresasMapa.forEach(function(emp){ qtd+=(contagem[emp]||0); });
+    if(qtd<=0) return; // pula se não houver ocupados
+
+    // Caso especial SEDE: rateio por CRD específico
+    if(cfg.label==='SEDE'){
+      // Contar por CRD 81.203.0002 e 81.203.0003
+      var qtd002=0, qtd003=0;
+      db.forEach(function(d){
+        if(d.status!=='OCUPADO'||d.empresa!=='SEDE') return;
+        if(d.crd&&d.crd.indexOf('81.203.0002')===0) qtd002++;
+        else if(d.crd&&d.crd.indexOf('81.203.0003')===0) qtd003++;
+      });
+      var rateio=[];
+      if(qtd002>0) rateio.push({crd:'81.203.0002',qtd:qtd002});
+      if(qtd003>0) rateio.push({crd:'81.203.0003',qtd:qtd003});
+      if(rateio.length===0) return;
+      lista.push({empresa:cfg.label,origem:cfg.origem,ukey:cfg.ukey,cnpj:cfg.cnpj,qtd:qtd,rateio:rateio});
+    } else {
+      lista.push({empresa:cfg.label,origem:cfg.origem,ukey:cfg.ukey,cnpj:cfg.cnpj,qtd:qtd,rateio:[{crd:cfg.crd,pct:100}]});
+    }
+  });
+  return lista;
+}
+var REC_LISTA=[];
 
 function fecharRecBg(){var el=document.getElementById('recBg');if(el)el.remove();}
 function logREC(msg,cor){cor=cor||'#fff';var el=document.getElementById('recProgressLog');if(el){el.innerHTML+='<span style="color:'+cor+'">'+msg+'</span>\n';el.scrollTop=el.scrollHeight;}}
 
 function criarREC(){
+  REC_LISTA=gerarRecLista(); // Atualizar com dados do mapa atual
   var compAtual='', vencAtual='';
   var ci=document.getElementById('sadCompInput'); if(ci) compAtual=ci.value;
   var vi=document.getElementById('sadVencInput'); if(vi) vencAtual=vi.value;
