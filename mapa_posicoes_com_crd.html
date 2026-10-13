@@ -926,6 +926,7 @@ async function renderAdmUsers(){
   $('admUserList').innerHTML=users.map((u,i)=>
     '<div class="usr-item"><span class="usr-name">'+u.nome+' ('+u.user+')</span>'+
     '<span class="usr-role '+(u.role==='admin'?'admin':'')+'">'+(u.role==='admin'?'Admin':'Usuário')+'</span>'+
+    '<button class="adm-dbtn" style="background:#1d4ed8;margin-right:4px" onclick="abrirTrocaSenha('+i+')">🔑</button>'+
     (i>0?'<button class="adm-dbtn" onclick="delUser('+i+')">✕</button>':'<span style="width:32px"></span>')+
     '</div>'
   ).join('');
@@ -977,6 +978,13 @@ window.addEventListener('DOMContentLoaded',function(){
 async function openChpass(){
   const users=await getUsers();
   $('chpassUser').innerHTML=users.map((u,i)=>'<option value="'+i+'">'+u.nome+' ('+u.user+')</option>').join('');
+  $('chpassNew').value=''; $('chpassConf').value=''; $('chpassErr').textContent='';
+  $('chpassBg').classList.add('open');
+  setTimeout(()=>$('chpassNew').focus(),80);
+}
+async function abrirTrocaSenha(idx){
+  const users=await getUsers();
+  $('chpassUser').innerHTML=users.map((u,i)=>'<option value="'+i+'"'+(i===idx?' selected':'')+'>'+u.nome+' ('+u.user+')</option>').join('');
   $('chpassNew').value=''; $('chpassConf').value=''; $('chpassErr').textContent='';
   $('chpassBg').classList.add('open');
   setTimeout(()=>$('chpassNew').focus(),80);
