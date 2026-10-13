@@ -916,10 +916,21 @@ async function doLogin(){
 async function openAdm(){ await renderAdmUsers(); $('admBg').classList.add('open'); }
 function closeAdm(){ $('admBg').classList.remove('open'); }
 function admTab(t){
-  document.querySelectorAll('.adm-tab').forEach((el,i)=>el.classList.toggle('active',i===(t==='log'?1:0)));
+  document.querySelectorAll('.adm-tab').forEach((el,i)=>el.classList.toggle('active',i===(t==='log'?1:t==='backup'?2:0)));
   $('admUsuarios').style.display=t==='usuarios'?'':'none';
   $('admLog').style.display=t==='log'?'':'none';
-  if(t==='log')renderLog();
+  $('admBackup').style.display=t==='backup'?'':'none';
+  if(t==='log') renderLog();
+  if(t==='backup'){
+    const bk=carregarBackupLocal();
+    const el=$('admBackupInfo');
+    if(bk&&bk.dados){
+      const ocu=bk.dados.filter(d=>d.status==='ocupado').length;
+      el.innerHTML='✅ Backup disponível<br>📅 Data: <b>'+new Date(bk.ts).toLocaleString('pt-BR')+'</b><br>🪑 Posições salvas: <b>'+bk.dados.length+'</b> | Ocupadas: <b>'+ocu+'</b>';
+    } else {
+      el.innerHTML='⚠️ Nenhum backup local encontrado ainda.<br>O backup será criado automaticamente quando o mapa carregar com sucesso.';
+    }
+  }
 }
 async function renderAdmUsers(){
   const users=await getUsers();
@@ -1197,21 +1208,112 @@ async function saveUsers(users){
 }
 
 // Mesas via Supabase
+// ── BACKUP LOCAL ──────────────────────────────────────────────────────────────
+function salvarBackupLocal(dados){
+  try{
+    const bk={ts:new Date().toISOString(),dados:dados};
+    localStorage.setItem('mapa_backup',JSON.stringify(bk));
+    console.log('✅ Backup local salvo:',bk.ts,'|',dados.length,'posições');
+  }catch(e){console.warn('Backup local falhou:',e);}
+}
+function carregarBackupLocal(){
+  try{
+    const raw=localStorage.getItem('mapa_backup');
+    if(!raw) return null;
+    return JSON.parse(raw);
+  }catch(e){return null;}
+}
+function exportarBackupLocal(){
+  const bk=carregarBackupLocal();
+  if(!bk){alert('Nenhum backup local encontrado.');return;}
+  const a=document.createElement('a');
+  a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(bk,null,2));
+  a.download='mapa_backup_'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();
+}
+async function importarBackupJSON(file){
+  try{
+    const txt=await file.text();
+    const bk=JSON.parse(txt);
+    const dados=bk.dados||bk;
+    if(!Array.isArray(dados)||dados.length===0){alert('Arquivo inválido ou vazio.');return;}
+    if(!confirm('Restaurar '+dados.length+' posições do backup de '+(bk.ts?new Date(bk.ts).toLocaleString('pt-BR'):'data desconhecida')+'?\n\nIsso vai SOBRESCREVER os dados atuais.')){return;}
+    db=dados;
+    showLoading('Restaurando backup...');
+    await saveAllDesks();
+    salvarBackupLocal(db);
+    hideLoading();
+    buildUI(); renderStats(); renderMap();
+    alert('✅ Backup restaurado com sucesso! '+dados.length+' posições.');
+  }catch(e){alert('Erro ao importar backup: '+e.message);}
+}
+
+// ── PING AUTOMÁTICO (evita Supabase pausar) ────────────────────────────────
+function agendarPingSupabase(){
+  setInterval(async function(){
+    try{
+      await _supa.from('mesas').select('id').limit(1);
+      console.log('🏓 Ping Supabase OK —',new Date().toLocaleTimeString('pt-BR'));
+    }catch(e){console.warn('Ping falhou:',e);}
+  }, 12*60*60*1000);
+  setTimeout(async function(){
+    try{ await _supa.from('mesas').select('id').limit(1); console.log('🏓 Ping inicial OK'); }catch(e){}
+  }, 5*60*1000);
+}
+
 async function loadDesksFromSupa(){
   showLoading('Conectando ao servidor...');
   try{
     const {data,error} = await _supa.from('mesas').select('dados');
-    if(!error && data && data.length>0){
-      db = data.map(r=>r.dados);
-    } else {
-      db = DESKS_INIT.map(d=>({...d}));
-      showLoading('Salvando dados iniciais...');
-      await saveAllDesks();
+    if(error){
+      console.error('Supabase erro:',error);
+      const bk=carregarBackupLocal();
+      if(bk&&bk.dados&&bk.dados.length>0){
+        const dataStr=new Date(bk.ts).toLocaleString('pt-BR');
+        showLoading('⚠️ Servidor offline. Carregando backup local de '+dataStr+'...');
+        db=bk.dados;
+        setTimeout(()=>{hideLoading(); buildUI(); renderStats(); renderMap(); mostrarAvisoOffline(dataStr);},1500);
+      } else {
+        showLoading('❌ Erro ao conectar e sem backup local. Recarregando...');
+        setTimeout(()=>location.reload(),5000);
+      }
+      return;
     }
-  } catch(e){ console.error(e); db=DESKS_INIT.map(d=>({...d})); }
+    if(data&&data.length>0){
+      db=data.map(r=>r.dados);
+      salvarBackupLocal(db);
+    } else {
+      db=DESKS_INIT.map(d=>({...d}));
+      showLoading('Primeira inicialização...');
+      await saveAllDesks();
+      salvarBackupLocal(db);
+    }
+  }catch(e){
+    console.error('loadDesksFromSupa exception:',e);
+    const bk=carregarBackupLocal();
+    if(bk&&bk.dados&&bk.dados.length>0){
+      const dataStr=new Date(bk.ts).toLocaleString('pt-BR');
+      showLoading('⚠️ Erro de conexão. Carregando backup local de '+dataStr+'...');
+      db=bk.dados;
+      setTimeout(()=>{hideLoading(); buildUI(); renderStats(); renderMap(); mostrarAvisoOffline(dataStr);},1500);
+    } else {
+      showLoading('❌ Erro de conexão. Recarregando em 5s...');
+      setTimeout(()=>location.reload(),5000);
+    }
+    return;
+  }
   hideLoading();
   buildUI(); renderStats(); renderMap();
+  agendarPingSupabase();
 }
+
+function mostrarAvisoOffline(dataStr){
+  const div=document.createElement('div');
+  div.style.cssText='position:fixed;top:0;left:0;right:0;background:#7f1d1d;color:#fff;text-align:center;padding:8px 16px;font-size:13px;font-weight:600;z-index:9999;display:flex;align-items:center;justify-content:center;gap:12px';
+  div.innerHTML='⚠️ MODO OFFLINE — Exibindo backup local de '+dataStr+'. Dados podem estar desatualizados. <button onclick="location.reload()" style="background:#fff;color:#7f1d1d;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;font-weight:700;font-size:12px">🔄 Tentar reconectar</button>';
+  document.body.prepend(div);
+}
+
 async function saveAllDesks(){
   const rows=db.map(d=>({id:d.id, dados:d}));
   await _supa.from('mesas').upsert(rows);
@@ -1224,21 +1326,25 @@ async function saveDeskById(id){
 // Log via Supabase
 async function addLog(msg){
   if(!currentUser) return;
-  await _supa.from('log_alteracoes').insert({
-    user_login: currentUser.user,
-    user_nome: currentUser.nome||currentUser.user,
-    mensagem: msg
-  });
+  try{
+    await _supa.from('log_alteracoes').insert({
+      user_login: currentUser.user,
+      user_nome: currentUser.nome||currentUser.user,
+      mensagem: msg
+    });
+  }catch(e){console.warn('addLog erro:',e);}
 }
 async function getLog(){
-  const {data} = await _supa.from('log_alteracoes')
-    .select('*').order('created_at',{ascending:false}).limit(200);
-  return (data||[]).map(r=>({user:r.user_login, nome:r.user_nome, msg:r.mensagem,
-    time: new Date(r.created_at).toLocaleDateString('pt-BR')+' '+new Date(r.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}));
+  try{
+    const {data} = await _supa.from('log_alteracoes')
+      .select('*').order('created_at',{ascending:false}).limit(200);
+    return (data||[]).map(r=>({user:r.user_login, nome:r.user_nome, msg:r.mensagem,
+      time: new Date(r.created_at).toLocaleDateString('pt-BR')+' '+new Date(r.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}));
+  }catch(e){return [];}
 }
 
 // Sobrescreve lsave e load
-function lsave(){ saveDeskById(ek); }
+function lsave(){ saveDeskById(ek); salvarBackupLocal(db); }
 function load(){ /* Supabase cuida */ }
 
 function tip(ev,html){const t=$('tip');t.innerHTML=html;t.style.display='block';mt(ev);}
@@ -1756,6 +1862,7 @@ async function executarCriarRECs(){
     <div class="adm-tabs">
       <div class="adm-tab active" onclick="admTab(&#39;usuarios&#39;)">👥 Usuários</div>
       <div class="adm-tab" onclick="admTab(&#39;log&#39;)">📋 Log de Alterações</div>
+      <div class="adm-tab" onclick="admTab(&#39;backup&#39;)">💾 Backup</div>
       <div class="adm-tab" onclick="openChpass()">🔑 Trocar Senha</div>
     </div>
     <div class="adm-body">
@@ -1791,6 +1898,22 @@ async function executarCriarRECs(){
           <button class="adm-sbtn" onclick="exportLog()">📤 Exportar Log</button>
         </div>
         <div id="admLogList"></div>
+      </div>
+      <div id="admBackup" style="display:none">
+        <div style="color:#9ca3af;font-size:11px;margin-bottom:14px">Backup automático salvo localmente neste navegador a cada alteração.</div>
+        <div id="admBackupInfo" style="background:#1f2937;border-radius:8px;padding:12px;margin-bottom:14px;font-size:12px;color:#d1d5db"></div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <button class="adm-sbtn" onclick="exportarBackupLocal()" style="background:#0F4C81;width:100%;padding:10px">
+            📥 Baixar backup local (JSON)
+          </button>
+          <label class="adm-sbtn" style="background:#217346;width:100%;padding:10px;text-align:center;cursor:pointer">
+            📤 Restaurar backup de arquivo JSON
+            <input type="file" accept=".json" style="display:none" onchange="importarBackupJSON(this.files[0])">
+          </label>
+        </div>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid #374151;color:#6b7280;font-size:10px">
+          ⚡ Ping automático ativo — o sistema acessa o banco a cada 12h para evitar pausas automáticas do Supabase.
+        </div>
       </div>
     </div>
   </div>
