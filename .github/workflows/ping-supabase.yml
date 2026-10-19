@@ -1,0 +1,24 @@
+name: Ping Supabase Diário
+
+on:
+  schedule:
+    - cron: '0 8 * * *'  # Todo dia às 8h (UTC = 5h Brasília)
+  workflow_dispatch:       # Permite rodar manualmente também
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://ckbrfbikyqcmbinpgciw.supabase.co/rest/v1/mesas?select=id&limit=1" \
+            -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNrYnJmYmlreXFjbWJpbnBnY2l3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwNjkwNTYsImV4cCI6MjA5NDY0NTA1Nn0.kOGtDM5Eq6Y5OV1JAu9e_LnHoR5VT_LwRVgSOyIM_YE" \
+            -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNrYnJmYmlreXFjbWJpbnBnY2l3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwNjkwNTYsImV4cCI6MjA5NDY0NTA1Nn0.kOGtDM5Eq6Y5OV1JAu9e_LnHoR5VT_LwRVgSOyIM_YE")
+          echo "Status HTTP: $STATUS"
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ Supabase ativo!"
+          else
+            echo "❌ Supabase retornou $STATUS"
+            exit 1
+          fi
