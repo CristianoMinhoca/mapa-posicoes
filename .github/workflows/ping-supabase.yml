@@ -2,23 +2,29 @@ name: Ping Supabase Diário
 
 on:
   schedule:
-    - cron: '0 8 * * *'
+    - cron: '0 11 * * *'   # Todo dia às 8h horário de Brasília (11h UTC)
+    - cron: '0 17 * * *'   # E às 14h horário de Brasília (17h UTC) — dois pings por dia
   workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Supabase
+      - name: Instalar cliente PostgreSQL
+        run: sudo apt-get install -y postgresql-client
+
+      - name: Ping via PostgreSQL direto
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            --max-time 30 \
+          psql \
+            "postgresql://postgres.${{ secrets.SUPABASE_PROJECT_REF }}:${{ secrets.SUPABASE_DB_PASSWORD }}@aws-0-sa-east-1.pooler.supabase.com:6543/postgres" \
+            -c "SELECT count(*) FROM mesas;" && echo "✅ Ping PostgreSQL OK" || echo "⚠️ Falhou"
+
+      - name: Ping via REST API também
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
             "https://ckbrfbikyqcmbinpgciw.supabase.co/rest/v1/mesas?select=id&limit=1" \
             -H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNrYnJmYmlreXFjbWJpbnBnY2l3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwNjkwNTYsImV4cCI6MjA5NDY0NTA1Nn0.kOGtDM5Eq6Y5OV1JAu9e_LnHoR5VT_LwRVgSOyIM_YE" \
             -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNrYnJmYmlreXFjbWJpbnBnY2l3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwNjkwNTYsImV4cCI6MjA5NDY0NTA1Nn0.kOGtDM5Eq6Y5OV1JAu9e_LnHoR5VT_LwRVgSOyIM_YE" || true)
-          echo "Status HTTP: $STATUS"
-          if [ "$STATUS" = "200" ] || [ "$STATUS" = "206" ]; then
-            echo "✅ Supabase ativo!"
-          else
-            echo "⚠️ Supabase retornou $STATUS — pode estar pausado"
-          fi
+          echo "REST API Status: $STATUS"
