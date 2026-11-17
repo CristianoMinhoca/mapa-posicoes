@@ -332,84 +332,6 @@ function wrapText(text, maxW, fs){
   if(ln)lines.push(ln);
   return lines.length?lines:[text.slice(0,maxCh)];
 }
-// IDs das baias de 6 posições que recebem visual de mesa real
-const BAIAS6 = new Set(['D6_4','D8_4','D12_4','D6_8','D8_8','D12_8','D6_12','D8_12','D12_12']);
-
-// Gera SVG de mesa com formato de escritório (vista de cima): tampo + retorno + monitor + notebook
-function deskSVG(bg, bd, tx, bw, bh){
-  // Paleta derivada das cores da mesa
-  const tampo = bg;           // cor principal da mesa
-  const borda  = bd;          // borda
-  const sombra = 'rgba(0,0,0,0.18)';
-  const madeira= bg;
-  // Monitor: retângulo escuro em pé + base
-  // Notebook: retângulo menor inclinado
-  // Vista de cima: tampo L-shape = retângulo principal + retorno à direita
-  const W=bw-2, H=bh-2;
-  // Tampo principal ocupa 70% da largura e 65% da altura
-  const tw=Math.round(W*0.70), th=Math.round(H*0.65);
-  // Retorno: ocupa 30% largura e 55% altura, posicionado à direita e embaixo
-  const rw=Math.round(W*0.33), rh=Math.round(H*0.55);
-  const rx=Math.round(W-rw), ry=Math.round(H-rh);
-  // Curva do L: interseção dos dois tampos → centro do encontro
-  const cx=Math.round(W*0.70), cy=Math.round(H*0.45);
-
-  // Monitor (vista de cima): retângulo fino horizontal (a tela vista de cima aparece como linha)
-  const mw=Math.round(W*0.22), mh=6;
-  const mx=Math.round(cx-mw*0.6), my=Math.round(cy-mh/2-2);
-  // Base do monitor
-  const bsmw=8, bsmh=4;
-  const bsmx=mx+Math.round(mw/2)-4, bsmy=my+mh;
-  // Notebook (vista de cima): retângulo menor
-  const nw=Math.round(W*0.15), nh=Math.round(H*0.14);
-  const nx=Math.round(cx+2), ny=Math.round(cy-nh/2+2);
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-  <defs>
-    <filter id="sh" x="-10%" y="-10%" width="130%" height="130%">
-      <feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.3)"/>
-    </filter>
-  </defs>
-  <!-- Tampo principal (horizontal superior) -->
-  <rect x="1" y="1" width="${tw}" height="${th}" rx="4" ry="4"
-        fill="${tampo}" stroke="${borda}" stroke-width="1.5" filter="url(#sh)"/>
-  <!-- Retorno (ala lateral inferior) -->
-  <rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" rx="4" ry="4"
-        fill="${tampo}" stroke="${borda}" stroke-width="1.5" filter="url(#sh)"/>
-  <!-- Tampo de junção (cobre a área central do L para parecer contínuo) -->
-  <rect x="${rx-1}" y="${cy-2}" width="${W-rx+2}" height="${th-cy+4}"
-        fill="${tampo}" stroke="none"/>
-  <rect x="${tw-2}" y="${ry-1}" width="${rw+3}" height="${H-ry+2}"
-        fill="${tampo}" stroke="none"/>
-  <!-- Linha divisória sutil entre os dois tampos -->
-  <line x1="${cx}" y1="${cy}" x2="${cx}" y2="${H-1}" stroke="${borda}" stroke-width="0.8" opacity="0.4"/>
-  <line x1="${cx}" y1="${cy}" x2="${W-1}" y2="${cy}" stroke="${borda}" stroke-width="0.8" opacity="0.4"/>
-  <!-- Monitor: tela (vista de cima = linha fina) -->
-  <rect x="${mx}" y="${my}" width="${mw}" height="${mh}" rx="1"
-        fill="#1a1a2e" stroke="#333" stroke-width="0.8" opacity="0.9"/>
-  <!-- Reflexo na tela -->
-  <rect x="${mx+2}" y="${my+1}" width="${Math.round(mw*0.4)}" height="2" rx="1"
-        fill="rgba(255,255,255,0.25)"/>
-  <!-- Base do monitor -->
-  <rect x="${bsmx}" y="${bsmy}" width="${bsmw}" height="${bsmh}" rx="1"
-        fill="#2d2d2d" stroke="#222" stroke-width="0.5"/>
-  <!-- Cabo do monitor (linha fina) -->
-  <line x1="${mx+Math.round(mw/2)}" y1="${bsmy+bsmh}" x2="${mx+Math.round(mw/2)}" y2="${bsmy+bsmh+5}"
-        stroke="#555" stroke-width="1" opacity="0.6"/>
-  <!-- Notebook: tampa fechada (vista de cima) -->
-  <rect x="${nx}" y="${ny}" width="${nw}" height="${nh}" rx="2"
-        fill="#2c3e50" stroke="#1a252f" stroke-width="0.8" opacity="0.88"/>
-  <!-- Logo do notebook (pequeno circulo branco) -->
-  <circle cx="${nx+Math.round(nw/2)}" cy="${ny+Math.round(nh/2)}" r="2.5"
-          fill="rgba(255,255,255,0.15)" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>
-  <!-- Pés da mesa (4 cantos) -->
-  <circle cx="5" cy="5" r="3" fill="#888" opacity="0.5"/>
-  <circle cx="${tw-4}" cy="5" r="3" fill="#888" opacity="0.5"/>
-  <circle cx="5" cy="${th-4}" r="3" fill="#888" opacity="0.5"/>
-  <circle cx="${W-4}" cy="${H-4}" r="3" fill="#888" opacity="0.5"/>
-</svg>`;
-}
-
 function renderMap(){
   const cv=$('canvas');
   [...cv.querySelectorAll('.desk')].forEach(d=>d.remove());
@@ -433,19 +355,7 @@ function renderMap(){
     const bw=d.w, bh=d.h;
     const hasEmp=!!(d.emp);
 
-    // Baias de 6 posições: layout especial com imagem de mesa real
-    if(BAIAS6.has(d.id)){
-      const fs=Math.max(7,Math.min(12,Math.floor(bh*0.22)));
-      const fse=Math.max(6,Math.min(10,Math.floor(bh*0.17)));
-      const svgStr=deskSVG(bg,bd,tx,bw,bh);
-      const svgB64=btoa(unescape(encodeURIComponent(svgStr)));
-      const nomeLines=wrapText(d.nome, bw-6, fs);
-      const nomeHtml=nomeLines.map(l=>`<div style="font-weight:700;font-size:${fs}px;color:${tx};line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${bw-6}px;text-align:center;text-shadow:0 1px 2px rgba(255,255,255,0.7)">${l}</div>`).join('');
-      const empHtml=hasEmp?`<div style="font-weight:400;font-size:${fse}px;color:${tx};opacity:.9;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${bw-6}px;text-align:center;text-shadow:0 1px 2px rgba(255,255,255,0.7)">${d.emp}</div>`:'';
-      const crdHtml=d.crd?`<div style="font-weight:400;font-size:${Math.max(6,fse-1)}px;color:${tx};opacity:.75;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${bw-6}px;text-align:center">${d.crd}</div>`:'';
-      div.style.cssText=`left:${d.x}px;top:${d.y}px;width:${bw}px;height:${bh}px;background-image:url('data:image/svg+xml;base64,${svgB64}');background-size:cover;background-position:center;border:1px solid ${bd};box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow:hidden;cursor:pointer;padding:2px 2px 0;`;
-      div.innerHTML=nomeHtml+empHtml+crdHtml;
-    } else if(vert){
+    if(vert){
       // Mesa vertical: texto rotacionado
       const fs=Math.max(8,Math.min(14,Math.floor(bw*0.44)));
       const fse=Math.max(7,Math.min(11,Math.floor(bw*0.34)));
